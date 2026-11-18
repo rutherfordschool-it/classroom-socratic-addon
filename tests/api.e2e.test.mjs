@@ -85,5 +85,94 @@ check('invalid grade rejected', r.status === 400);
 r = await j(`/api/attachment/${bio.id}/submissions`);
 check('other assignment sees no foreign submissions', r.body.submissions.length === 0);
 
+// 8. Multi-document Lesson Plan Draft: ALL loaded curriculum and material documents are used
+r = await j('/api/lesson-plan/generate-draft', {
+  method: 'POST',
+  body: JSON.stringify({
+    courseName: 'MHF4U Advanced Functions',
+    gradeLevel: 'Grade 12',
+    subject: 'Mathematics',
+    curriculum: 'canada',
+    loadedDocuments: [
+      {
+        title: 'Curriculum: Ontario MHF4U Official Expectations',
+        docCategory: 'curriculum',
+        source: 'Curriculum Library',
+        content: '- C1.1 Understand logarithmic and exponential relationships.\n- A2.2 Analyze rational functions and asymptotes.'
+      },
+      {
+        title: 'Curriculum: IB Diploma Math AA HL Standards',
+        docCategory: 'curriculum',
+        source: 'Curriculum Library',
+        content: '- Topic 1.7 Exponents and logarithms.\n- Topic 2.6 Rational functions and polynomial division.'
+      },
+      {
+        title: 'Unit 4 Reference: Laws of Logarithms',
+        docCategory: 'material',
+        source: 'Course Library',
+        content: 'Product Law: \\log_b(xy) = \\log_b(x) + \\log_b(y). Quotient Law: \\log_b(x/y) = \\log_b(x) - \\log_b(y).'
+      },
+      {
+        title: 'Unit 2 Reference: Rational Functions & Asymptotes',
+        docCategory: 'material',
+        source: 'Google Drive',
+        content: 'Rational function f(x) = P(x)/Q(x), vertical asymptotes, horizontal asymptote, oblique asymptote, removable discontinuity.'
+      },
+      {
+        title: 'Unit 1 Reference: Polynomial Factor Theorem',
+        docCategory: 'material',
+        source: 'Local File',
+        content: 'Remainder theorem P(a) = R and Factor theorem P(a) = 0 <=> (x - a) is a factor of cubic polynomial.'
+      }
+    ]
+  })
+});
+const md = r.body.draft;
+check('multi-doc draft returns documentsUsed count = 5 (2 curricula + 3 materials)',
+  md?.documentsUsed?.totalCount === 5 && md?.documentsUsed?.curriculaCount === 2 && md?.documentsUsed?.materialsCount === 3,
+  JSON.stringify(md?.documentsUsed));
+check('multi-doc draft title includes all 3 material documents',
+  /Laws of Logarithms/i.test(md?.title) && /Rational Functions/i.test(md?.title) && /Polynomial Factor Theorem/i.test(md?.title),
+  md?.title);
+check('multi-doc learningGoal includes both curricula and all 3 materials',
+  /Ontario MHF4U/i.test(md?.learningGoal) && /IB Diploma Math AA HL/i.test(md?.learningGoal) &&
+  /Laws of Logarithms/i.test(md?.learningGoal) && /Rational Functions/i.test(md?.learningGoal) && /Polynomial Factor Theorem/i.test(md?.learningGoal));
+check('multi-doc exercisePool interleaves all 3 materials in Level A, B, and C',
+  ['levelA', 'levelB', 'levelC'].every(tier => {
+    const probs = md?.exercisePool?.[tier] || [];
+    return probs.length === 10 &&
+      probs.some(p => /Laws of Logarithms/i.test(p.problem)) &&
+      probs.some(p => /Rational Functions/i.test(p.problem)) &&
+      probs.some(p => /Polynomial Factor Theorem/i.test(p.problem));
+  }));
+check('multi-doc diagnostic covers all 3 loaded material documents',
+  (md?.exercisePool?.diagnostic || []).length === 3);
+
+// 9. Multi-file custom text documents parsed from section-delimited materials string
+r = await j('/api/lesson-plan/generate-draft', {
+  method: 'POST',
+  body: JSON.stringify({
+    courseName: 'Custom Humanities & Science Seminar',
+    gradeLevel: 'Grade 11',
+    materials: [
+      '=== [📘 CURRICULUM STANDARD 1: AP Seminar & Inquiry Rubric (Curriculum Library)] ===\n- Evaluate primary sources and synthesize evidence across multiple texts.',
+      '=== [📄 COURSE MATERIAL 2: File_Alpha_Thermodynamics.txt (Local File)] ===\nFirst Law of Thermodynamics: conservation of internal energy delta U = Q - W.',
+      '=== [📄 COURSE MATERIAL 3: File_Beta_Entropy.txt (Local File)] ===\nSecond Law of Thermodynamics: total entropy S of an isolated system always increases.',
+      '=== [📄 COURSE MATERIAL 4: File_Gamma_Carnot_Efficiency.txt (Local File)] ===\nCarnot heat engine efficiency eta = 1 - T_cold / T_hot.'
+    ].join('\n\n')
+  })
+});
+const cd = r.body.draft;
+check('section-delimited materials parses all 4 documents (1 curriculum + 3 custom files)',
+  cd?.documentsUsed?.totalCount === 4 && cd?.documentsUsed?.curriculaCount === 1 && cd?.documentsUsed?.materialsCount === 3,
+  JSON.stringify(cd?.documentsUsed));
+check('all 3 custom files appear in Level A, Level B, and Level C problems',
+  ['levelA', 'levelB', 'levelC'].every(tier => {
+    const probs = cd?.exercisePool?.[tier] || [];
+    return probs.some(p => /File_Alpha_Thermodynamics/i.test(p.problem)) &&
+      probs.some(p => /File_Beta_Entropy/i.test(p.problem)) &&
+      probs.some(p => /File_Gamma_Carnot_Efficiency/i.test(p.problem));
+  }));
+
 console.log(fail === 0 ? '\nALL PASSED' : `\n${fail} FAILED`);
 process.exit(fail ? 1 : 0);

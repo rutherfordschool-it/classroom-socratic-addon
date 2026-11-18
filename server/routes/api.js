@@ -904,13 +904,17 @@ apiRouter.post('/materials/process-multimodal', async (req, res) => {
 
 /**
  * Block 2: Generate AI Lesson Plan Draft & Expanded Exercise Pool (Diagnostic + Levels A/B/C)
+ * Uses ALL loaded documents (curricula + materials, even when many files are loaded).
  */
 apiRouter.post('/lesson-plan/generate-draft', async (req, res) => {
   try {
     const {
       courseName = 'MHF4U Advanced Functions',
       gradeLevel = 'Grade 12',
+      subject = '',
+      curriculum = '',
       materials = '',
+      loadedDocuments = [],
       teacherInstructions = '',
       provider = config.defaultProvider
     } = req.body;
@@ -918,7 +922,10 @@ apiRouter.post('/lesson-plan/generate-draft', async (req, res) => {
     const prompt = SocraticPromptEngine.buildLessonPlanDraftPrompt({
       courseName,
       gradeLevel,
+      subject,
+      curriculum,
       materials,
+      loadedDocuments,
       teacherInstructions
     });
 
@@ -926,7 +933,10 @@ apiRouter.post('/lesson-plan/generate-draft', async (req, res) => {
       prompt,
       courseName,
       gradeLevel,
+      subject,
+      curriculum,
       materials,
+      loadedDocuments,
       teacherInstructions,
       provider
     });

@@ -120,20 +120,58 @@ export class SocraticPromptEngine {
   }
 
   /**
-   * Generates a prompt for creating a Lesson Plan draft and an expanded Exercise Pool (Diagnostic + Levels A/B/C).
+   * Generates a prompt for creating a Lesson Plan draft and an expanded Exercise Pool (Diagnostic + Levels A/B/C),
+   * explicitly incorporating ALL loaded curriculum documents and ALL loaded material documents.
    */
   static buildLessonPlanDraftPrompt({
     courseName = 'High School Course',
     gradeLevel = 'Grade 12',
+    subject = '',
+    curriculum = '',
     materials = '',
+    loadedDocuments = [],
     teacherInstructions = ''
   }) {
     const tpl = getPrompts().lessonPlanDraftGenerator?.template || '';
+    const docs = Array.isArray(loadedDocuments) ? loadedDocuments.filter(d => d && (d.content || d.title)) : [];
+    const curriculumDocs = docs.filter(d => d.docCategory === 'curriculum');
+    const materialDocs = docs.filter(d => d.docCategory !== 'curriculum');
+
+    let multiDocManifest = '';
+    if (docs.length > 0) {
+      const curLines = curriculumDocs.map((d, i) =>
+        `=== [📘 CURRICULUM DOCUMENT ${i + 1} of ${curriculumDocs.length}: ${d.title || 'Curriculum Standard'} (${d.source || 'Library'})] ===\n${String(d.content || '').trim()}`
+      );
+      const matLines = materialDocs.map((d, i) =>
+        `=== [📄 COURSE MATERIAL DOCUMENT ${i + 1} of ${materialDocs.length}: ${d.title || 'Course Material'} (${d.source || 'Teacher Studio'})] ===\n${String(d.content || '').trim()}`
+      );
+      multiDocManifest = [
+        `LOADED DOCUMENTS MANIFEST (${docs.length} Total Document(s): ${curriculumDocs.length} Curriculum + ${materialDocs.length} Material):`,
+        ...curLines,
+        ...matLines
+      ].filter(Boolean).join('\n\n');
+    }
+
+    const effectiveMaterials = [
+      multiDocManifest,
+      (!multiDocManifest || (materials && !multiDocManifest.includes(materials.slice(0, 80)))) ? materials : ''
+    ].filter(Boolean).join('\n\n') || `Topic / Course: ${courseName} (${gradeLevel})`;
+
+    const multiDocDirective = docs.length > 1
+      ? `\n\nCRITICAL MULTI-DOCUMENT REQUIREMENT (${docs.length} Documents Loaded — ${curriculumDocs.length} Curriculum, ${materialDocs.length} Material):\n` +
+        `- You MUST synthesize and use ALL ${docs.length} loaded documents above.\n` +
+        `- Align the learningGoal, socraticSteps/targetMilestones, and specificExpectations with ALL ${curriculumDocs.length || 1} curriculum standards and ALL ${materialDocs.length || docs.length} material documents.\n` +
+        `- Distribute the 10 Level A, 10 Level B, 10 Level C, and Diagnostic problems proportionally across ALL ${materialDocs.length || docs.length} loaded material documents so every loaded document is represented in every difficulty tier.`
+      : '';
+
     return tpl
-      .replace('{{courseName}}', courseName)
+      .replace('{{courseName}}', [courseName, subject, curriculum].filter(Boolean).join(' • '))
       .replace('{{gradeLevel}}', gradeLevel)
-      .replace('{{materials}}', materials || `Topic / Course: ${courseName} (${gradeLevel})`)
-      .replace('{{teacherInstructions}}', teacherInstructions || 'Create a progressive Socratic lesson plan from foundational single-step problems to multi-step synthesis.');
+      .replace('{{materials}}', effectiveMaterials)
+      .replace(
+        '{{teacherInstructions}}',
+        `${teacherInstructions || 'Create a progressive Socratic lesson plan from foundational single-step problems to multi-step synthesis.'}${multiDocDirective}`
+      );
   }
 
   /**

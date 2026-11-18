@@ -42,7 +42,7 @@ export class ClassroomService {
     this.driveResultsDirty = new Set();
     this.resultSheetUrls = new Map();
     this.initializeDefaultData();
-    if (config.storageBackend !== 'drive') {
+    if (config.storageBackend === 'file') {
       this.loadStoreFromFile();
     }
   }
@@ -1310,6 +1310,7 @@ export class ClassroomService {
       teacherInstructions: planData.teacherInstructions || '',
       courseMaterials: planData.courseMaterials || '',
       courseMaterialsSource: planData.courseMaterialsSource || 'Teacher Studio',
+      loadedDocuments: Array.isArray(planData.loadedDocuments) ? planData.loadedDocuments : [],
       levelConfigs: planData.levelConfigs || null,
       exercisePool: planData.exercisePool || null,
       repetitionsPerTier: Number(planData.repetitionsPerTier) || 3,

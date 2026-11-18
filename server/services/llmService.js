@@ -488,23 +488,45 @@ export class LLMService {
 
   /**
    * Block 2: AI Lesson Plan Draft & Expanded Exercise Pool Generator (10 problems per tier A, B, C)
+   * Synthesizes ALL loaded curriculum documents and ALL loaded material documents.
    */
-  async generateLessonPlanDraft({ prompt, courseName = 'Course Lesson', gradeLevel = 'Grade 12', materials = '', teacherInstructions = '', provider = 'gemini', model = 'gemini-3.1-flash-lite' }) {
-    const fallbackDraft = this._buildTopicAwareLessonDraft({ courseName, gradeLevel, materials, teacherInstructions });
+  async generateLessonPlanDraft({
+    prompt,
+    courseName = 'Course Lesson',
+    gradeLevel = 'Grade 12',
+    subject = '',
+    curriculum = '',
+    materials = '',
+    loadedDocuments = [],
+    teacherInstructions = '',
+    provider = 'gemini',
+    model = 'gemini-3.1-flash-lite'
+  }) {
+    const fallbackDraft = this._buildTopicAwareLessonDraft({
+      courseName,
+      gradeLevel,
+      subject,
+      curriculum,
+      materials,
+      loadedDocuments,
+      teacherInstructions
+    });
 
-    // For explicitly recognized library/curriculum units (Stoichiometry, Quadratics, Photosynthesis, Newton's Laws, Vectors, Rational/Poly/Trig, or Logarithms),
-    // return the instant, 10-per-tier verified curriculum pool immediately (<5ms) so the UI never hangs!
-    const isRecognizedCurriculumTopic = /stoichiometr|limiting reactant|molar mass|quadratic|completing the square|discriminant|photosynthesis|calvin cycle|cellular respiration|newton|free-body|inclined plane|dot product|cross product|3-space|rational function|oblique asymptote|factor theorem|remainder theorem|radian|trigonometric identit|\\log\b|log_|logarithm|\\ln\b/i.test(`${materials} ${courseName}`);
-    if (isRecognizedCurriculumTopic && (!teacherInstructions || teacherInstructions.trim().length < 80)) {
-      return fallbackDraft;
+    // If all loaded material documents matched verified built-in curriculum topic pools and there are no lengthy custom instructions,
+    // return the synthesized multi-document draft immediately (<5ms) so every loaded curriculum & material document is included with verified answers.
+    if (fallbackDraft._allMaterialsRecognizedBuiltIn && (!teacherInstructions || teacherInstructions.trim().length < 80)) {
+      const { _allMaterialsRecognizedBuiltIn, ...cleanDraft } = fallbackDraft;
+      return cleanDraft;
     }
+    const { _allMaterialsRecognizedBuiltIn, ...cleanFallbackDraft } = fallbackDraft;
 
     try {
       const { GeminiBridge } = await import('./geminiBridge.js');
+      const targetTierSize = Math.max(10, cleanFallbackDraft.exercisePool?.levelA?.length || 10);
       const raw = await Promise.race([
         GeminiBridge.generateContent({
           model,
-          systemPrompt: 'You are an expert curriculum designer. Output strictly valid JSON matching the requested schema with 10 problems in levelA, 10 in levelB, and 10 in levelC grounded strictly in the provided teacher materials and instructions. Never invent unrelated topics.',
+          systemPrompt: 'You are an expert curriculum designer. Output strictly valid JSON matching the requested schema with 10 problems in levelA, 10 in levelB, and 10 in levelC grounded strictly in ALL provided teacher curriculum documents, material documents, and instructions. Every loaded document must be represented. Never invent unrelated topics.',
           messages: [{ role: 'user', content: prompt }]
         }),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Draft generation timeout')), 14000))
@@ -514,43 +536,67 @@ export class LLMService {
         const parsed = JSON.parse(match[0]);
         if (parsed && parsed.exercisePool && Array.isArray(parsed.exercisePool.levelB)) {
           const padTier = (arr = [], fallbackArr = [], prefix = 'B') => {
-            const combined = [...arr];
-            for (const item of fallbackArr) {
-              if (combined.length >= 10) break;
-              combined.push({
-                ...item,
-                id: `${prefix}${combined.length + 1}`
-              });
+            const combined = [];
+            const seen = new Set();
+            // When multiple documents are loaded, ensure every loaded material document is represented
+            const matTitles = cleanFallbackDraft.documentsUsed?.materialTitles || [];
+            const llmCoversAllDocs = matTitles.length <= 1 || matTitles.every(title => {
+              const short = String(title).slice(0, 18).toLowerCase();
+              return arr.some(it => String(it?.problem || '').toLowerCase().includes(short));
+            });
+
+            const primaryArr = llmCoversAllDocs ? arr : [];
+            for (const item of [...primaryArr, ...fallbackArr, ...(llmCoversAllDocs ? [] : arr)]) {
+              if (!item || combined.length >= targetTierSize) break;
+              const probText = String(item.problem || item.description || '').trim();
+              if (!probText) continue;
+              const norm = probText.toLowerCase();
+              if (seen.has(norm)) continue;
+              seen.add(norm);
+              combined.push(item);
             }
-            return combined.slice(0, 10).map((item, idx) => ({
+            return combined.slice(0, targetTierSize).map((item, idx) => ({
               id: `${prefix}${idx + 1}`,
               problem: item.problem || item.description || `Problem ${prefix}${idx + 1}`,
               targetAnswer: item.targetAnswer || 'Step-by-step derivation',
               hint: item.hint || item.description || 'Apply the core rule from the reference sheet.',
-              rubric: item.rubric || item.description || ''
+              rubric: item.rubric || item.description || '',
+              ...(item.sourceDocument ? { sourceDocument: item.sourceDocument } : {})
             }));
           };
 
-          const steps = (Array.isArray(parsed.socraticSteps) && parsed.socraticSteps.length > 0)
+          const steps = (Array.isArray(parsed.socraticSteps) && parsed.socraticSteps.length > 0 && cleanFallbackDraft.documentsUsed?.totalCount <= 1)
             ? parsed.socraticSteps
-            : (Array.isArray(parsed.pedagogicalSteps) && parsed.pedagogicalSteps.length > 0)
-              ? parsed.pedagogicalSteps
-              : (Array.isArray(parsed.targetMilestones) && parsed.targetMilestones.length > 0)
-                ? parsed.targetMilestones
-                : fallbackDraft.socraticSteps;
+            : cleanFallbackDraft.socraticSteps;
+
+          const mergedExpectations = Array.from(new Set([
+            ...(cleanFallbackDraft.specificExpectations || []),
+            ...(Array.isArray(parsed.specificExpectations) ? parsed.specificExpectations : [])
+          ]));
 
           return {
-            title: parsed.title || fallbackDraft.title,
-            topic: parsed.topic || parsed.title || fallbackDraft.topic,
-            learningGoal: parsed.learningGoal || fallbackDraft.learningGoal,
+            title: (cleanFallbackDraft.documentsUsed?.materialsCount > 1)
+              ? cleanFallbackDraft.title
+              : (parsed.title || cleanFallbackDraft.title),
+            subject: cleanFallbackDraft.subject || parsed.subject || subject || 'Mathematics',
+            gradeLevel: cleanFallbackDraft.gradeLevel || parsed.gradeLevel || gradeLevel || 'Grade 12',
+            topic: (cleanFallbackDraft.documentsUsed?.materialsCount > 1)
+              ? cleanFallbackDraft.topic
+              : (parsed.topic || parsed.title || cleanFallbackDraft.topic),
+            learningGoal: (cleanFallbackDraft.documentsUsed?.totalCount > 1)
+              ? cleanFallbackDraft.learningGoal
+              : (parsed.learningGoal || cleanFallbackDraft.learningGoal),
             socraticSteps: steps,
             targetMilestones: steps,
-            specificExpectations: parsed.specificExpectations || fallbackDraft.specificExpectations,
+            specificExpectations: mergedExpectations,
+            documentsUsed: cleanFallbackDraft.documentsUsed,
             exercisePool: {
-              diagnostic: (parsed.exercisePool.diagnostic?.length ? parsed.exercisePool.diagnostic : fallbackDraft.exercisePool.diagnostic),
-              levelA: padTier(parsed.exercisePool.levelA, fallbackDraft.exercisePool.levelA, 'A'),
-              levelB: padTier(parsed.exercisePool.levelB, fallbackDraft.exercisePool.levelB, 'B'),
-              levelC: padTier(parsed.exercisePool.levelC, fallbackDraft.exercisePool.levelC, 'C')
+              diagnostic: (cleanFallbackDraft.documentsUsed?.materialsCount > 1)
+                ? cleanFallbackDraft.exercisePool.diagnostic
+                : (parsed.exercisePool.diagnostic?.length ? parsed.exercisePool.diagnostic : cleanFallbackDraft.exercisePool.diagnostic),
+              levelA: padTier(parsed.exercisePool.levelA, cleanFallbackDraft.exercisePool.levelA, 'A'),
+              levelB: padTier(parsed.exercisePool.levelB, cleanFallbackDraft.exercisePool.levelB, 'B'),
+              levelC: padTier(parsed.exercisePool.levelC, cleanFallbackDraft.exercisePool.levelC, 'C')
             }
           };
         }
@@ -559,14 +605,477 @@ export class LLMService {
       console.warn('[LLMService] generateLessonPlanDraft fallback:', e.message);
     }
 
-    return fallbackDraft;
+    return cleanFallbackDraft;
   }
 
   /**
-   * Topic-aware Lesson Plan & 30-Exercise Pool builder (10 Level A + 10 Level B + 10 Level C + 2 Diagnostic)
-   * Automatically adapts to whichever material the teacher selected or uploaded in Block 1.
+   * Normalizes and extracts all loaded documents (both Curriculum and Material documents)
+   * from `loadedDocuments` array and/or section-delimited `materials` text.
    */
-  _buildTopicAwareLessonDraft({ courseName = '', gradeLevel = 'Grade 12', materials = '', teacherInstructions = '' }) {
+  _extractLoadedDocuments({ loadedDocuments = [], materials = '', courseName = '', gradeLevel = 'Grade 12', subject = '', curriculum = '' }) {
+    const docs = [];
+    const seenKeys = new Set();
+
+    const addDoc = (rawDoc) => {
+      if (!rawDoc) return;
+      const cleanTitle = String(rawDoc.title || '')
+        .replace(/^===\s*\[.*?\]\s*===$/g, '')
+        .trim() || 'Loaded Document';
+      const cleanContent = String(rawDoc.content || '')
+        .replace(/^===\s*\[(?:📘|📄)?\s*(?:CURRICULUM|COURSE MATERIAL).*?\]\s*===\s*/gim, '')
+        .trim();
+      if (!cleanContent && !cleanTitle) return;
+      const cat = String(rawDoc.docCategory || '').toLowerCase() === 'curriculum' ||
+        /curriculum standard|official curriculum|ministry expectation|syllabus standard/i.test(`${cleanTitle} ${rawDoc.recognizedType || ''}`)
+        ? 'curriculum'
+        : 'material';
+      const dedupeKey = `${cat}::${cleanTitle.toLowerCase()}::${cleanContent.slice(0, 120).toLowerCase()}`;
+      if (seenKeys.has(dedupeKey)) return;
+      seenKeys.add(dedupeKey);
+      docs.push({
+        id: rawDoc.id || `doc-${docs.length + 1}`,
+        title: cleanTitle,
+        content: cleanContent || cleanTitle,
+        source: rawDoc.source || (cat === 'curriculum' ? 'Curriculum Library' : 'Teacher Studio'),
+        docCategory: cat,
+        curriculum: rawDoc.curriculum || curriculum || 'Canada Ontario OSS',
+        gradeLevel: rawDoc.gradeLevel || gradeLevel || 'Grade 12',
+        subject: rawDoc.subject || subject || ''
+      });
+    };
+
+    if (Array.isArray(loadedDocuments) && loadedDocuments.length > 0) {
+      loadedDocuments.forEach(addDoc);
+    }
+
+    // Also parse `=== [📘 CURRICULUM ...: Title (Source)] ===` or `=== [📄 COURSE MATERIAL ...: Title (Source)] ===` blocks from `materials`
+    const rawMat = String(materials || '').trim();
+    if (rawMat) {
+      const headerRegex = /^===\s*\[([^\]]+)\]\s*===\s*$/gm;
+      const matches = [...rawMat.matchAll(headerRegex)];
+      if (matches.length > 0) {
+        // Check if there is any text typed BEFORE the first header
+        const preText = rawMat.slice(0, matches[0].index).trim();
+        if (preText.length > 5) {
+          addDoc({
+            title: 'Teacher Studio Notes',
+            content: preText,
+            source: 'Block 1 Editor',
+            docCategory: 'material'
+          });
+        }
+        for (let i = 0; i < matches.length; i++) {
+          const headerText = matches[i][1].trim();
+          const startIdx = matches[i].index + matches[i][0].length;
+          const endIdx = i + 1 < matches.length ? matches[i + 1].index : rawMat.length;
+          const sectionBody = rawMat.slice(startIdx, endIdx).trim();
+          const isCur = /curriculum/i.test(headerText);
+          // Parse `📘 CURRICULUM STANDARD 1: Title (Source)`
+          const titleSourceMatch = headerText.match(/:\s*(.+?)(?:\s*\(([^()]+)\))?$/);
+          const parsedTitle = titleSourceMatch ? titleSourceMatch[1].trim() : headerText;
+          const parsedSource = titleSourceMatch && titleSourceMatch[2] ? titleSourceMatch[2].trim() : (isCur ? 'Curriculum Library' : 'Teacher Studio');
+          addDoc({
+            title: parsedTitle,
+            content: sectionBody,
+            source: parsedSource,
+            docCategory: isCur ? 'curriculum' : 'material'
+          });
+        }
+      } else if (docs.length === 0) {
+        addDoc({
+          title: courseName || 'Teacher Reference Material',
+          content: rawMat,
+          source: 'Teacher Studio',
+          docCategory: 'material'
+        });
+      } else {
+        // Check if `rawMat` contains extra user-typed notes not present in `docs`
+        const combinedExisting = docs.map(d => d.content).join('\n');
+        const extraLines = rawMat
+          .split('\n')
+          .map(l => l.trim())
+          .filter(l => l.length > 8 && !l.startsWith('===') && !combinedExisting.includes(l));
+        if (extraLines.length > 0) {
+          addDoc({
+            title: 'Additional Teacher Studio Notes',
+            content: extraLines.join('\n'),
+            source: 'Block 1 Editor',
+            docCategory: 'material'
+          });
+        }
+      }
+    }
+
+    const curriculumDocs = docs.filter(d => d.docCategory === 'curriculum');
+    const materialDocs = docs.filter(d => d.docCategory !== 'curriculum');
+
+    return {
+      allDocs: docs,
+      curriculumDocs,
+      materialDocs
+    };
+  }
+
+  /**
+   * Extracts curriculum titles, standard codes, and specific expectations from ALL loaded curriculum documents.
+   */
+  _extractCurriculumAlignment(curriculumDocs = [], fallbackCurriculum = '') {
+    const curriculumTitles = [];
+    const curriculumExpectations = [];
+
+    for (const cDoc of curriculumDocs) {
+      const cleanName = String(cDoc.title || '')
+        .replace(/^Curriculum:\s*/i, '')
+        .trim() || cDoc.curriculum || 'Curriculum Standard';
+      if (!curriculumTitles.includes(cleanName)) {
+        curriculumTitles.push(cleanName);
+      }
+
+      const lines = String(cDoc.content || '')
+        .split('\n')
+        .map(l => l.replace(/^[-*•\d.)\s]+/, '').trim())
+        .filter(l => l.length >= 12 && !/^Official Curriculum Standard Selected:/i.test(l));
+
+      let addedForThisDoc = 0;
+      for (const line of lines) {
+        if (addedForThisDoc >= 3) break;
+        const tagged = `[${cleanName}] ${line.length > 140 ? `${line.slice(0, 137)}...` : line}`;
+        if (!curriculumExpectations.includes(tagged)) {
+          curriculumExpectations.push(tagged);
+          addedForThisDoc++;
+        }
+      }
+      if (addedForThisDoc === 0) {
+        curriculumExpectations.push(`[${cleanName}] Align terminology, Socratic scaffolding, and multi-step derivations with ${cleanName} expectations.`);
+      }
+    }
+
+    if (curriculumTitles.length === 0 && fallbackCurriculum) {
+      const labelMap = {
+        canada: 'Canada — Ontario OSS (MHF4U/MCV4U)',
+        us: 'US — Common Core / AP Standards',
+        us_ap: 'US — Common Core / AP Standards',
+        ib: 'International Baccalaureate (IB HL/SL)',
+        uk: 'UK — A-Level / GCSE Standards',
+        uk_alevel: 'UK — A-Level / GCSE Standards'
+      };
+      curriculumTitles.push(labelMap[fallbackCurriculum] || fallbackCurriculum);
+    }
+
+    return {
+      curriculumDocs,
+      curriculumTitles,
+      curriculumExpectations
+    };
+  }
+
+  /**
+   * Multi-Document & Topic-Aware Lesson Plan & 30-Exercise Pool Builder.
+   * Ensures EVERY loaded curriculum document and EVERY loaded material document (even when many files are loaded)
+   * is used in the lesson plan title, learning goal, milestones, expectations, and 30-problem pool.
+   */
+  _buildTopicAwareLessonDraft({
+    courseName = '',
+    gradeLevel = 'Grade 12',
+    subject = '',
+    curriculum = '',
+    materials = '',
+    loadedDocuments = [],
+    teacherInstructions = ''
+  }) {
+    const { allDocs, curriculumDocs, materialDocs } = this._extractLoadedDocuments({
+      loadedDocuments,
+      materials,
+      courseName,
+      gradeLevel,
+      subject,
+      curriculum
+    });
+    const curriculumInfo = this._extractCurriculumAlignment(curriculumDocs, curriculum);
+
+    // If the teacher loaded material documents, use all of them.
+    // If they ONLY loaded curriculum documents (0 separate material files), use all curriculum documents as material sources too.
+    const effectiveMaterialDocs = materialDocs.length > 0
+      ? materialDocs
+      : (curriculumDocs.length > 0
+        ? curriculumDocs
+        : [{
+            id: 'doc-default',
+            title: courseName || 'Course Lesson',
+            content: materials || courseName || 'Course Lesson',
+            source: 'Teacher Studio',
+            docCategory: 'material',
+            gradeLevel,
+            subject
+          }]);
+
+    // Build individual drafts for every loaded material document
+    const docDrafts = [];
+    let allMaterialsRecognizedBuiltIn = true;
+
+    for (const matDoc of effectiveMaterialDocs) {
+      // If a single material document contains multiple distinct built-in topics (and only 1 material doc was provided),
+      // expand all matched built-in topics so none are ignored; otherwise build the draft for this specific document.
+      const multiTopicsInSingleDoc = (effectiveMaterialDocs.length === 1)
+        ? this._detectMultipleBuiltInTopicsInSingleText(`${matDoc.title}\n${matDoc.content}`)
+        : [];
+
+      if (multiTopicsInSingleDoc.length > 1) {
+        for (const topicKey of multiTopicsInSingleDoc) {
+          const d = this._buildSingleDocumentDraft({
+            courseName: matDoc.title || courseName,
+            gradeLevel: matDoc.gradeLevel || gradeLevel,
+            materials: topicKey.triggerText,
+            teacherInstructions,
+            docTitle: `${matDoc.title} (${topicKey.label})`
+          });
+          docDrafts.push(d);
+        }
+      } else {
+        const d = this._buildSingleDocumentDraft({
+          courseName: matDoc.title || courseName,
+          gradeLevel: matDoc.gradeLevel || gradeLevel,
+          materials: `${matDoc.title}\n${matDoc.content}`,
+          teacherInstructions,
+          docTitle: matDoc.title,
+          rawDocContent: matDoc.content
+        });
+        if (!d._isBuiltInTopic) {
+          allMaterialsRecognizedBuiltIn = false;
+        }
+        docDrafts.push(d);
+      }
+    }
+
+    return this._synthesizeMultiDocumentDraft({
+      docDrafts,
+      curriculumInfo,
+      allDocs,
+      curriculumDocs,
+      materialDocs: effectiveMaterialDocs,
+      gradeLevel,
+      subject,
+      teacherInstructions,
+      allMaterialsRecognizedBuiltIn
+    });
+  }
+
+  /**
+   * Detects if a single unsplit text block explicitly contains multiple distinct built-in curriculum topics.
+   */
+  _detectMultipleBuiltInTopicsInSingleText(text = '') {
+    const lower = String(text || '').toLowerCase();
+    const candidates = [
+      { id: 'chem_stoich', label: 'Stoichiometry & Limiting Reactants', triggerText: 'stoichiometry limiting reactant molar mass', test: () => !/photosynthesis|calvin cycle|thylakoid/i.test(lower) && /stoichiometr|limiting reactant|theoretical yield/i.test(lower) },
+      { id: 'math_quad', label: 'Quadratics & Completing the Square', triggerText: 'quadratic completing the square vertex form discriminant', test: () => /completing the square|vertex form|discriminant|b\^2\s*-\s*4ac/i.test(lower) },
+      { id: 'bio_photo', label: 'Photosynthesis & Cellular Energetics', triggerText: 'photosynthesis calvin cycle thylakoid cellular respiration', test: () => /photosynthesis|calvin cycle|thylakoid|cellular respiration/i.test(lower) },
+      { id: 'phys_newton', label: "Newton's Laws & Dynamics", triggerText: 'newton free-body diagram inclined plane friction', test: () => /free-body|free body|inclined plane|f_\{net\}/i.test(lower) },
+      { id: 'math_vectors', label: 'Vectors, Lines & Planes in 3-Space', triggerText: '3-space dot product cross product normal vector skew lines', test: () => /dot product|cross product|skew lines|normal vector/i.test(lower) },
+      { id: 'math_rational', label: 'Rational Functions & Asymptotes', triggerText: 'rational function oblique asymptote horizontal asymptote removable discontinuity', test: () => /oblique asymptote|removable discontinuity|hole at x/i.test(lower) },
+      { id: 'math_poly', label: 'Polynomial Remainder & Factor Theorems', triggerText: 'factor theorem remainder theorem synthetic division cubic polynomial', test: () => /factor theorem|remainder theorem|synthetic division/i.test(lower) },
+      { id: 'math_trig', label: 'Trigonometric Functions & Identities', triggerText: 'radian cast rule double angle trigonometric identities', test: () => /cast rule|double angle|trigonometric identit|\\sin\(2x\)/i.test(lower) },
+      { id: 'math_log', label: 'Laws of Logarithms', triggerText: 'logarithm log_2 log_3 product law quotient law power law', test: () => /\\log_|logarithm/i.test(lower) }
+    ];
+    return candidates.filter(c => c.test());
+  }
+
+  /**
+   * Combines 1..N per-document drafts and 0..C curriculum documents into a single unified Lesson Plan Draft
+   * where EVERY loaded curriculum document and EVERY loaded material document is used.
+   */
+  _synthesizeMultiDocumentDraft({
+    docDrafts = [],
+    curriculumInfo = { curriculumDocs: [], curriculumTitles: [], curriculumExpectations: [] },
+    allDocs = [],
+    curriculumDocs = [],
+    materialDocs = [],
+    gradeLevel = 'Grade 12',
+    subject = '',
+    teacherInstructions = '',
+    allMaterialsRecognizedBuiltIn = false
+  }) {
+    const customNote = teacherInstructions && teacherInstructions.trim()
+      ? ` (${teacherInstructions.trim()})`
+      : '';
+
+    const documentsUsed = {
+      totalCount: curriculumDocs.length + materialDocs.length,
+      curriculaCount: curriculumDocs.length,
+      materialsCount: materialDocs.length,
+      curriculumTitles: curriculumDocs.map(d => d.title),
+      materialTitles: materialDocs.map(d => d.title),
+      allTitles: [...curriculumDocs.map(d => d.title), ...materialDocs.map(d => d.title)]
+    };
+
+    if (docDrafts.length === 1 && curriculumDocs.length === 0) {
+      const single = docDrafts[0];
+      return {
+        ...single,
+        documentsUsed,
+        _allMaterialsRecognizedBuiltIn: allMaterialsRecognizedBuiltIn
+      };
+    }
+
+    const shortTitles = docDrafts.map((d, idx) => {
+      const raw = String(d.shortTitle || d.sourceDocTitle || d.title || `Document ${idx + 1}`)
+        .replace(/^Custom Lesson Plan:\s*/i, '')
+        .replace(/\s*\([^()]*\)\s*$/, '')
+        .trim();
+      return raw.length > 44 ? `${raw.slice(0, 41)}...` : raw;
+    });
+
+    const curNames = curriculumInfo.curriculumTitles || [];
+    const curBadge = curNames.length > 0 ? ` [${curNames.join(' + ')}]` : '';
+
+    // 1. Unified Title & Topic
+    const unifiedTitle = docDrafts.length === 1
+      ? `${docDrafts[0].title.replace(/\s*\([^()]*\)\s*$/, '')}${curNames.length > 1 ? ` (${curNames.join(' + ')})` : ''}${customNote}`
+      : `Integrated Multi-Document Lesson (${docDrafts.length} Materials): ${shortTitles.join(' + ')}${customNote}`;
+
+    const unifiedTopic = docDrafts.length === 1
+      ? docDrafts[0].topic
+      : shortTitles.join(' • ');
+
+    // 2. Subject & Grade Level
+    const subjects = Array.from(new Set(docDrafts.map(d => d.subject).filter(Boolean)));
+    const unifiedSubject = subjects.length === 1 ? subjects[0] : (subject || subjects[0] || 'Mathematics');
+    const unifiedGrade = gradeLevel || docDrafts[0]?.gradeLevel || 'Grade 12';
+
+    // 3. Unified Learning Goal (incorporates ALL material documents + ALL curriculum documents)
+    const goalParts = docDrafts.map((d, idx) => {
+      const cleanGoal = String(d.learningGoal || '').replace(/\s*\([^()]*\)\s*$/, '').trim();
+      return docDrafts.length > 1
+        ? `(${idx + 1}) [${shortTitles[idx]}] ${cleanGoal}`
+        : cleanGoal;
+    });
+    const curriculumGoalSuffix = curNames.length > 0
+      ? ` Aligned with Curriculum Standard${curNames.length > 1 ? 's' : ''}: ${curNames.join(' & ')}.`
+      : '';
+    const unifiedLearningGoal = `${goalParts.join(' ')}${curriculumGoalSuffix}${customNote}`.trim();
+
+    // 4. Unified Socratic Steps / Target Milestones (covers every curriculum & material document)
+    let unifiedSteps = [];
+    if (docDrafts.length === 1) {
+      unifiedSteps = [...(docDrafts[0].socraticSteps || docDrafts[0].targetMilestones || [])];
+      if (curNames.length > 0) {
+        unifiedSteps.push(
+          `Step ${unifiedSteps.length + 1} (Curriculum Alignment — ${curNames.join(' & ')}): Verify that terminology, notation, and multi-step justifications satisfy ${curNames.join(' & ')} expectations.`
+        );
+      }
+    } else {
+      unifiedSteps.push(
+        `Step 1 (Multi-Document Diagnostic Check${curBadge}): Diagnose foundational readiness across all ${docDrafts.length} loaded materials (${shortTitles.join(', ')}).`
+      );
+      docDrafts.forEach((d, idx) => {
+        const coreStep = (d.socraticSteps?.[1] || d.socraticSteps?.[0] || `Apply core concepts from ${shortTitles[idx]}`)
+          .replace(/^Step\s*\d+\s*\([^)]*\):\s*/i, '');
+        unifiedSteps.push(
+          `Step ${idx + 2} (Material ${idx + 1} — ${shortTitles[idx]}): ${coreStep}`
+        );
+      });
+      unifiedSteps.push(
+        `Step ${unifiedSteps.length + 1} (Cross-Document Synthesis & Curriculum Verification${curBadge}): Integrate concepts across ${shortTitles.join(' + ')} and verify solutions against ${curNames.length > 0 ? curNames.join(' & ') : 'course'} expectations.`
+      );
+    }
+
+    // 5. Unified Specific Expectations (from ALL curriculum docs + ALL material docs)
+    const unifiedExpectations = Array.from(new Set([
+      ...(curriculumInfo.curriculumExpectations || []),
+      ...docDrafts.flatMap((d, idx) =>
+        (d.specificExpectations || []).map(exp =>
+          docDrafts.length > 1 && !exp.startsWith('[') ? `[${shortTitles[idx]}] ${exp}` : exp
+        )
+      )
+    ]));
+
+    // 6. Distribute & Interleave Exercise Pool (Diagnostic + Level A + Level B + Level C) across ALL material documents
+    const diagnosticPool = [];
+    if (docDrafts.length === 1) {
+      diagnosticPool.push(...(docDrafts[0].exercisePool?.diagnostic || []));
+    } else {
+      docDrafts.forEach((d, idx) => {
+        const firstDiag = d.exercisePool?.diagnostic?.[0];
+        if (firstDiag) {
+          const cleanProb = String(firstDiag.problem || '').replace(/^Quick Diagnostic Check:\s*/i, '');
+          diagnosticPool.push({
+            ...firstDiag,
+            id: `diag-${idx + 1}`,
+            problem: `Quick Diagnostic ${idx + 1} [${shortTitles[idx]}]: ${cleanProb}`,
+            sourceDocument: d.sourceDocTitle || shortTitles[idx]
+          });
+        }
+      });
+    }
+
+    const interleaveTier = (tierKey, prefix) => {
+      const targetCount = Math.max(10, docDrafts.length);
+      const result = [];
+      const cursors = docDrafts.map(() => 0);
+      const seenProblems = new Set();
+
+      for (let i = 0; i < targetCount; i++) {
+        const docIdx = i % docDrafts.length;
+        const d = docDrafts[docIdx];
+        const sourceArr = d.exercisePool?.[tierKey] || [];
+        if (sourceArr.length === 0) continue;
+
+        let chosen = null;
+        for (let attempt = 0; attempt < sourceArr.length; attempt++) {
+          const candidateIdx = (cursors[docIdx] + attempt) % sourceArr.length;
+          const candidate = sourceArr[candidateIdx];
+          const norm = String(candidate?.problem || '').toLowerCase().trim();
+          if (!seenProblems.has(norm)) {
+            chosen = candidate;
+            cursors[docIdx] = candidateIdx + 1;
+            seenProblems.add(norm);
+            break;
+          }
+        }
+        if (!chosen) {
+          chosen = sourceArr[cursors[docIdx] % sourceArr.length];
+          cursors[docIdx]++;
+        }
+
+        const rawProb = String(chosen.problem || `Problem ${prefix}${i + 1}`);
+        const taggedProb = (docDrafts.length > 1 && !rawProb.startsWith('['))
+          ? `[${shortTitles[docIdx]}] ${rawProb}`
+          : rawProb;
+
+        result.push({
+          ...chosen,
+          id: `${prefix}${i + 1}`,
+          problem: taggedProb,
+          sourceDocument: d.sourceDocTitle || shortTitles[docIdx]
+        });
+      }
+      return result;
+    };
+
+    return {
+      title: unifiedTitle,
+      subject: unifiedSubject,
+      gradeLevel: unifiedGrade,
+      topic: unifiedTopic,
+      learningGoal: unifiedLearningGoal,
+      socraticSteps: unifiedSteps,
+      targetMilestones: unifiedSteps,
+      specificExpectations: unifiedExpectations,
+      documentsUsed,
+      _allMaterialsRecognizedBuiltIn: allMaterialsRecognizedBuiltIn,
+      exercisePool: {
+        diagnostic: diagnosticPool,
+        levelA: interleaveTier('levelA', 'A'),
+        levelB: interleaveTier('levelB', 'B'),
+        levelC: interleaveTier('levelC', 'C')
+      }
+    };
+  }
+
+  /**
+   * Builds a single-document Lesson Plan & 30-Exercise Pool (10 Level A + 10 Level B + 10 Level C + 2 Diagnostic)
+   * for one specific material document.
+   */
+  _buildSingleDocumentDraft({ courseName = '', gradeLevel = 'Grade 12', materials = '', teacherInstructions = '', docTitle = '', rawDocContent = '' }) {
     // Prioritize `materials` text when present so selecting a new material in Block 1 always wins over any old title
     const primarySource = (materials && materials.trim().length > 10)
       ? `${materials} ${teacherInstructions}`
@@ -575,11 +1084,17 @@ export class LLMService {
     const customNote = teacherInstructions && teacherInstructions.trim()
       ? ` (${teacherInstructions.trim()})`
       : '';
+    const tagBuiltIn = (draft, shortTitle) => ({
+      ...draft,
+      shortTitle: docTitle || shortTitle || draft.title,
+      sourceDocTitle: docTitle || shortTitle || draft.title,
+      _isBuiltInTopic: true
+    });
 
     // 1. STOICHIOMETRY & LIMITING REACTANTS (Chemistry) — exclude Biology photosynthesis/respiration materials that contain 2\text{H}_2\text{O}
     const isBiologyMaterial = /biology|bio\b|photosynthesis|calvin cycle|cellular respiration|thylakoid|chloroplast|atp|nadph|glycolysis|krebs/i.test(combinedText);
     if (!isBiologyMaterial && /chemistry|chem\b|stoichiometr|limiting reactant|molar mass|2\\text\{h\}_2\s*\+|2h_2\s*\+|2 h₂|theoretical yield/i.test(combinedText)) {
-      return {
+      return tagBuiltIn({
         title: `Limiting Reactants & Stoichiometric Ratios${customNote}`,
         subject: 'Chemistry',
         gradeLevel: 'Grade 11',
@@ -644,12 +1159,12 @@ export class LLMService {
             { id: 'C10', problem: 'When $10.8\\text{ g Al}$ ($0.40\\text{ mol}$) reacts with $48.0\\text{ g Fe}_2\\text{O}_3$ ($0.30\\text{ mol}$) in the thermite reaction $2\\text{Al} + \\text{Fe}_2\\text{O}_3 \\rightarrow \\text{Al}_2\\text{O}_3 + 2\\text{Fe}$, find the total mass of solid products and unreacted excess reactant.', targetAnswer: '58.8 g total (conservation of mass: 22.3 g Fe + 20.4 g Al2O3 + 16.0 g excess Fe2O3)', hint: '$\\text{Al}$ is limiting ($0.40\\text{ mol Al}$ reacts with $0.20\\text{ mol Fe}_2\\text{O}_3$).' }
           ]
         }
-      };
+      }, 'Stoichiometry & Limiting Reactants');
     }
 
     // 2. QUADRATICS & COMPLETING THE SQUARE (Mathematics)
     if (/quadratic|completing the square|discriminant|vertex form|b\^2 - 4ac|ax\^2/i.test(combinedText)) {
-      return {
+      return tagBuiltIn({
         title: `Completing the Square, Vertex Form & Quadratic Formula${customNote}`,
         subject: 'Mathematics',
         gradeLevel: 'Grade 10',
@@ -714,12 +1229,12 @@ export class LLMService {
             { id: 'C10', problem: 'Solve for $x$ in terms of parameter $p$: $x^2 - 2px + (p^2 - 9) = 0$.', targetAnswer: 'x = p + 3 or x = p - 3', hint: 'Notice $(x - p)^2 = 9$ upon completing the square.' }
           ]
         }
-      };
+      }, 'Quadratics & Completing the Square');
     }
 
     // 3. BIOLOGY: PHOTOSYNTHESIS & CELLULAR RESPIRATION
     if (/biology|bio\b|photosynthesis|calvin cycle|cellular respiration|thylakoid|atp|nadph|glycolysis|krebs/i.test(combinedText)) {
-      return {
+      return tagBuiltIn({
         title: `Cellular Energetics: Photosynthesis & ATP Synthesis${customNote}`,
         subject: 'Biology',
         gradeLevel: 'Grade 11',
@@ -798,12 +1313,12 @@ export class LLMService {
             hint: 'Analyze the biochemical disequilibrium, proton motive force, or enzyme kinetics.'
           }))
         }
-      };
+      }, 'Photosynthesis & Cellular Energetics');
     }
 
     // 4. PHYSICS: NEWTON'S LAWS & FREE-BODY DIAGRAMS
     if (/physics|phys\b|newton|free-body|free body|inertia|inclined plane|f_\{net\}|\\vec\{f\}/i.test(combinedText)) {
-      return {
+      return tagBuiltIn({
         title: `Newton's Laws of Motion & Free-Body Diagrams${customNote}`,
         subject: 'Physics',
         gradeLevel: 'Grade 11',
@@ -882,12 +1397,12 @@ export class LLMService {
             hint: 'Set up simultaneous Newton’s Second Law equations for each body or orthogonal axis.'
           }))
         }
-      };
+      }, "Newton's Laws & Dynamics");
     }
 
     // 5. VECTORS, LINES & PLANES IN 3-SPACE (MCV4U)
     if (/3-space|\\mathbb\{r\}\^3|dot product|cross product|normal vector|skew lines|direction vector/i.test(combinedText)) {
-      return {
+      return tagBuiltIn({
         title: `Lines, Planes & Vectors in 3-Space ($\\mathbb{R}^3$)${customNote}`,
         topic: 'Dot Product, Cross Product, and Equations of Lines & Planes in 3-Space',
         learningGoal: `Students represent lines ($\\vec{r} = \\vec{r}_0 + t\\vec{d}$) and planes ($Ax + By + Cz + D = 0$) in $\\mathbb{R}^3$, apply the dot product ($\\vec{u}\\cdot\\vec{v}$) and cross product ($\\vec{u}\\times\\vec{v}$), and classify intersections of lines and planes.${customNote}`,
@@ -964,12 +1479,12 @@ export class LLMService {
             hint: 'Use normal vectors $\\vec{n} = \\vec{AB} \\times \\vec{AC}$, distance projection formulas, or system elimination.'
           }))
         }
-      };
+      }, 'Vectors, Lines & Planes in 3-Space');
     }
 
     // 6. RATIONAL FUNCTIONS & ASYMPTOTES (MHF4U Unit 2)
     if (/rational function|oblique asymptote|horizontal asymptote|removable discontinuity|hole at x/i.test(combinedText)) {
-      return {
+      return tagBuiltIn({
         title: `Rational Functions: Vertical, Horizontal & Oblique Asymptotes${customNote}`,
         topic: 'Asymptotes, Removable Discontinuities (Holes) & Rational Inequalities',
         learningGoal: `Students analyze rational functions $f(x) = \\frac{P(x)}{Q(x)}$ by factoring to distinguish removable discontinuities (holes) from vertical asymptotes, comparing polynomial degrees for horizontal/oblique asymptotes, and solving rational inequalities.${customNote}`,
@@ -1046,12 +1561,12 @@ export class LLMService {
             hint: 'Bring all terms to the left side over a common denominator and build an interval sign chart.'
           }))
         }
-      };
+      }, 'Rational Functions & Asymptotes');
     }
 
     // 6b. POLYNOMIAL FUNCTIONS: FACTOR THEOREM & INEQUALITIES (MHF4U Unit 1)
     if (/factor theorem|remainder theorem|cubic polynomial|polynomial inequalit|synthetic division/i.test(combinedText)) {
-      return {
+      return tagBuiltIn({
         title: `Polynomial Functions: Remainder & Factor Theorems${customNote}`,
         topic: 'Remainder Theorem, Factor Theorem & Polynomial Inequalities',
         learningGoal: `Students apply the Remainder Theorem ($P(a) = R$) and Factor Theorem ($P(a) = 0 \\Longleftrightarrow (x - a)$ is a factor) to factor cubic and quartic polynomials completely and solve polynomial inequalities using interval sign charts.${customNote}`,
@@ -1128,12 +1643,12 @@ export class LLMService {
             hint: 'Use the Rational Zero Theorem $\\pm p/q$, simultaneous remainder equations, or sign charts.'
           }))
         }
-      };
+      }, 'Polynomial Remainder & Factor Theorems');
     }
 
     // 6c. TRIGONOMETRIC FUNCTIONS & IDENTITIES (MHF4U Unit 3)
     if (/radian|cast rule|double angle|trigonometric identit|\\sin\(2x\)|\\cos\(2x\)/i.test(combinedText)) {
-      return {
+      return tagBuiltIn({
         title: `Trigonometric Functions: Radians, Exact Values & Identities${customNote}`,
         topic: 'Radian Measure, Special Triangles, Compound/Double Angles & Identities',
         learningGoal: `Students evaluate exact trigonometric ratios in radians across all four quadrants using special triangles ($\\frac{\\pi}{6}, \\frac{\\pi}{4}, \\frac{\\pi}{3}$) and the CAST rule, and prove trigonometric identities using Pythagorean and double-angle formulas.${customNote}`,
@@ -1210,12 +1725,12 @@ export class LLMService {
             hint: 'Substitute $\\cos(2x) = 1 - 2\\sin^2(x)$ or $2\\cos^2(x) - 1$ and factor.'
           }))
         }
-      };
+      }, 'Trigonometric Functions & Identities');
     }
 
     // 7. LOGARITHMS & EXPONENTIAL FUNCTIONS (ONLY when material/title explicitly mentions logarithms!)
     if (/\\log\b|log_|logarithm|\\ln\b/i.test(combinedText)) {
-      return {
+      return tagBuiltIn({
         title: `Laws of Logarithms: Product, Quotient & Power Rules${customNote}`,
         subject: 'Mathematics',
         gradeLevel: 'Grade 12',
@@ -1290,69 +1805,110 @@ export class LLMService {
             { id: 'C10', problem: 'Solve the logarithmic inequality and state domain restrictions: $\\log_2(2x - 4) \\le 3$', targetAnswer: '2 < x <= 6', hint: 'Combine domain restriction $2x - 4 > 0$ ($x > 2$) with $2x - 4 \\le 2^3 = 8$.' }
           ]
         }
-      };
+      }, 'Laws of Logarithms');
     }
 
-    // 8. CUSTOM TEACHER INPUT / GENERAL TOPIC FALLBACK (Strictly grounded in teacher's provided text — NEVER Logarithms!)
-    const rawMaterialLine = (materials || teacherInstructions || courseName || 'Custom Teacher Topic')
+    // 8. CUSTOM TEACHER INPUT / GENERAL DOCUMENT BUILDER (Strictly grounded in the specific document's content — NEVER Logarithms!)
+    const bodyText = String(rawDocContent || materials || teacherInstructions || courseName || 'Custom Teacher Topic')
+      .replace(/^===\s*\[.*?\]\s*===\s*/gim, '')
+      .trim();
+    const contentLines = bodyText
       .split('\n')
-      .map(l => l.trim())
-      .filter(Boolean)[0] || 'Custom Teacher Lesson Plan';
-    const cleanTopicTitle = rawMaterialLine.length > 68 ? `${rawMaterialLine.slice(0, 65)}...` : rawMaterialLine;
-    const detectedSubject = /chemistry|chem\b/i.test(courseName) ? 'Chemistry'
-      : /biology|bio\b/i.test(courseName) ? 'Biology'
-      : /physics|phys\b/i.test(courseName) ? 'Physics'
+      .map(l => l.replace(/^[#>*•\-\d.)\s]+/, '').trim())
+      .filter(l => l.length >= 4 && !/^===\s*\[/.test(l));
+
+    const preferredTitle = String(docTitle || '')
+      .replace(/^===\s*\[.*?\]\s*===$/g, '')
+      .replace(/\.(txt|md|pdf|docx?)$/i, '')
+      .trim();
+    const firstContentLine = contentLines[0] || courseName || 'Custom Teacher Lesson Plan';
+    const rawTopicTitle = (preferredTitle && !/^Teacher Reference Material$/i.test(preferredTitle))
+      ? preferredTitle
+      : firstContentLine;
+    const cleanTopicTitle = rawTopicTitle.length > 68 ? `${rawTopicTitle.slice(0, 65)}...` : rawTopicTitle;
+
+    // Extract key points, formulas, or examples from this document so every section of the document is used
+    const extractedPoints = contentLines.filter(l => l !== cleanTopicTitle && l.length >= 6).slice(0, 12);
+    if (extractedPoints.length === 0) {
+      extractedPoints.push(firstContentLine);
+    }
+
+    const detectedSubject = /chemistry|chem\b/i.test(`${courseName} ${bodyText}`) ? 'Chemistry'
+      : /biology|bio\b/i.test(`${courseName} ${bodyText}`) ? 'Biology'
+      : /physics|phys\b/i.test(`${courseName} ${bodyText}`) ? 'Physics'
       : 'Mathematics';
+
+    const summarySnippet = extractedPoints.slice(0, 3).join('; ');
 
     return {
       title: `Custom Lesson Plan: ${cleanTopicTitle}${customNote}`,
+      shortTitle: cleanTopicTitle,
+      sourceDocTitle: docTitle || cleanTopicTitle,
+      _isBuiltInTopic: false,
       subject: detectedSubject,
       gradeLevel: gradeLevel || 'Grade 12',
       topic: cleanTopicTitle,
-      learningGoal: `Analyze and solve problems grounded directly in the teacher's reference notes: "${cleanTopicTitle}".${customNote}`,
+      learningGoal: `Analyze and solve problems grounded directly in "${cleanTopicTitle}" (${summarySnippet.slice(0, 160)}).${customNote}`,
       socraticSteps: [
-        `Step 1 (Diagnostic Check): Identify the given values and core concept from the teacher's reference notes (${cleanTopicTitle}).`,
-        'Step 2 (Formulation): Set up the relationship or equation directly from the provided reference material.',
-        'Step 3 (Step-by-Step Execution): Carry out each intermediate step and show all work clearly.',
-        'Step 4 (Verification): Check the final result against the conditions in the reference material.'
+        `Step 1 (Diagnostic Check — ${cleanTopicTitle}): Identify the given values and core relationship from "${extractedPoints[0].slice(0, 90)}".`,
+        `Step 2 (Formulation — ${cleanTopicTitle}): Set up the equation or concept from "${(extractedPoints[1] || extractedPoints[0]).slice(0, 90)}".`,
+        `Step 3 (Step-by-Step Execution — ${cleanTopicTitle}): Carry out each intermediate step for "${(extractedPoints[2] || extractedPoints[0]).slice(0, 90)}".`,
+        `Step 4 (Verification — ${cleanTopicTitle}): Check the final result against the conditions in "${cleanTopicTitle}".`
       ],
       targetMilestones: [
-        `Step 1 (Diagnostic Check): Identify the given values and core concept from the teacher's reference notes (${cleanTopicTitle}).`,
-        'Step 2 (Formulation): Set up the relationship or equation directly from the provided reference material.',
-        'Step 3 (Step-by-Step Execution): Carry out each intermediate step and show all work clearly.',
-        'Step 4 (Verification): Check the final result against the conditions in the reference material.'
+        `Step 1 (Diagnostic Check — ${cleanTopicTitle}): Identify the given values and core relationship from "${extractedPoints[0].slice(0, 90)}".`,
+        `Step 2 (Formulation — ${cleanTopicTitle}): Set up the equation or concept from "${(extractedPoints[1] || extractedPoints[0]).slice(0, 90)}".`,
+        `Step 3 (Step-by-Step Execution — ${cleanTopicTitle}): Carry out each intermediate step for "${(extractedPoints[2] || extractedPoints[0]).slice(0, 90)}".`,
+        `Step 4 (Verification — ${cleanTopicTitle}): Check the final result against the conditions in "${cleanTopicTitle}".`
       ],
       specificExpectations: [
-        `Apply the concepts from "${cleanTopicTitle}" step by step`,
+        `Apply the concepts from "${cleanTopicTitle}" (${extractedPoints[0].slice(0, 80)}) step by step`,
+        ...(extractedPoints[1] ? [`Demonstrate mastery of: ${extractedPoints[1].slice(0, 90)}`] : []),
         'Justify intermediate reasoning using the Teacher Reference Sheet'
       ],
       exercisePool: {
         diagnostic: [
           {
             id: 'diag-1',
-            problem: `Quick Diagnostic Check based on your teacher's notes (${cleanTopicTitle}): State the key relationship or pattern in the provided material.`,
-            targetAnswer: 'Identify key pattern/relationship from notes',
-            hint: 'Look at the first line of the Teacher Reference Material in the left panel.'
+            problem: `Quick Diagnostic Check (${cleanTopicTitle}): Based on "${extractedPoints[0].slice(0, 100)}", state the key relationship or first step.`,
+            targetAnswer: extractedPoints[0].slice(0, 80),
+            hint: `Refer directly to "${cleanTopicTitle}" in the Teacher Reference Material.`
+          },
+          {
+            id: 'diag-2',
+            problem: `Diagnostic Step 2 (${cleanTopicTitle}): Apply "${(extractedPoints[1] || extractedPoints[0]).slice(0, 100)}" to identify the target quantity.`,
+            targetAnswer: (extractedPoints[1] || extractedPoints[0]).slice(0, 80),
+            hint: `Check the second concept in "${cleanTopicTitle}".`
           }
         ],
-        levelA: Array.from({ length: 10 }, (_, i) => ({
-          id: `A${i + 1}`,
-          problem: `Foundational Practice A${i + 1} (${cleanTopicTitle}): Apply Step 1 of the teacher's reference notes to case #${i + 1}.`,
-          targetAnswer: 'Step-by-step foundational solution',
-          hint: `Use the foundational rule in "${cleanTopicTitle}" to set up the first step.`
-        })),
-        levelB: Array.from({ length: 10 }, (_, i) => ({
-          id: `B${i + 1}`,
-          problem: `Standard Practice B${i + 1} (${cleanTopicTitle}): Solve the multi-step application #${i + 1} using the teacher's reference notes.`,
-          targetAnswer: 'Complete multi-step derivation',
-          hint: `Combine Steps 1 and 2 from "${cleanTopicTitle}" and simplify.`
-        })),
-        levelC: Array.from({ length: 10 }, (_, i) => ({
-          id: `C${i + 1}`,
-          problem: `Mastery Challenge C${i + 1} (${cleanTopicTitle}): Extend and verify the concept from the teacher's notes on advanced case #${i + 1}.`,
-          targetAnswer: 'Full verification and justification',
-          hint: `Justify each step and verify edge cases using "${cleanTopicTitle}".`
-        }))
+        levelA: Array.from({ length: 10 }, (_, i) => {
+          const pt = extractedPoints[i % extractedPoints.length];
+          return {
+            id: `A${i + 1}`,
+            problem: `Foundational Practice A${i + 1} (${cleanTopicTitle}): Using "${pt.slice(0, 110)}", set up and evaluate foundational case #${i + 1}.`,
+            targetAnswer: `Step-by-step application of: ${pt.slice(0, 70)}`,
+            hint: `Use "${pt.slice(0, 80)}" from "${cleanTopicTitle}" to set up the first step.`
+          };
+        }),
+        levelB: Array.from({ length: 10 }, (_, i) => {
+          const pt1 = extractedPoints[i % extractedPoints.length];
+          const pt2 = extractedPoints[(i + 1) % extractedPoints.length];
+          return {
+            id: `B${i + 1}`,
+            problem: `Standard Practice B${i + 1} (${cleanTopicTitle}): Combine "${pt1.slice(0, 85)}" and "${pt2.slice(0, 85)}" to solve multi-step application #${i + 1}.`,
+            targetAnswer: `Complete multi-step derivation for ${cleanTopicTitle}`,
+            hint: `Combine the rules in "${cleanTopicTitle}" step by step.`
+          };
+        }),
+        levelC: Array.from({ length: 10 }, (_, i) => {
+          const pt = extractedPoints[i % extractedPoints.length];
+          return {
+            id: `C${i + 1}`,
+            problem: `Mastery Challenge C${i + 1} (${cleanTopicTitle}): Extend, prove, and verify edge cases for "${pt.slice(0, 110)}" (Challenge #${i + 1}).`,
+            targetAnswer: `Full verification and justification for ${cleanTopicTitle}`,
+            hint: `Justify each step and verify constraints using "${cleanTopicTitle}".`
+          };
+        })
       }
     };
   }

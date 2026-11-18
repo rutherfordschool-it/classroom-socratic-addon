@@ -408,30 +408,39 @@ function initMultimodalStudioControls() {
       if (file.type.startsWith('image/')) {
         prepMethodsUsed.add('handwritten_photo');
         updatePrepMethodsBadges();
-        const reader = new FileReader();
-        reader.onload = (ev) => {
+        const dataUrl = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => resolve(ev.target?.result || '');
+          reader.onerror = () => resolve('');
+          reader.readAsDataURL(file);
+        });
+        if (dataUrl) {
           addHandwrittenImageToStudio({
             name: file.name,
             mimeType: file.type || 'image/jpeg',
-            data: ev.target.result
+            data: dataUrl
           });
-        };
-        reader.readAsDataURL(file);
+        }
       } else {
         prepMethodsUsed.add('file_upload');
         updatePrepMethodsBadges();
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-          const text = String(ev.target.result || '').slice(0, 6000);
-          await addLoadedFileToStudio({
-            title: file.name,
-            content: text,
-            source: `Local File (${file.name})`
-          });
-        };
-        reader.readAsText(file);
+        const rawText = typeof file.text === 'function'
+          ? await file.text()
+          : await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onload = (ev) => resolve(String(ev.target?.result || ''));
+              reader.onerror = () => resolve('');
+              reader.readAsText(file);
+            });
+        const text = String(rawText || '').slice(0, 25000);
+        await addLoadedFileToStudio({
+          title: file.name,
+          content: text,
+          source: `Local File (${file.name})`
+        });
       }
     }
+    e.target.value = '';
   });
 
   // 2. Voice Dictation Drawer & Web Speech API (Clean — No Usage Samples)
@@ -578,19 +587,16 @@ function initMultimodalStudioControls() {
       const data = await res.json();
       const synthText = (data.result?.synthesizedMarkdown || data.result?.synthesizedMaterial || '').trim();
       if (data.success && synthText) {
-        lastLoadedMaterialText = synthText;
-        lastLoadedCourseName = '';
-        materialStudioEditor?.setValue(synthText);
-        attachedMaterialSource = `Synthesized in Teacher Studio`;
         resetBlock2LessonPlanOnly();
-        const previewSnippet = synthText.replace(/\s+/g, ' ').slice(0, 55);
-        showActiveMaterialBadge(`✨ Recognized in Block 1 ("${previewSnippet}${synthText.length > 55 ? '...' : ''}") — Push "✨ Propose Lesson Plan Draft" in Block 2 when ready.`);
-        updateLessonPlanStatusPill('Notes Recognized in Block 1 — Waiting for Teacher to Generate Lesson Plan', false);
-        await recognizeAndDisplayMaterial({
+        await addLoadedFileToStudio({
           title: 'Synthesized Teacher Studio Material',
           content: synthText,
-          source: 'Teacher Studio Synthesis'
+          source: 'Teacher Studio Synthesis',
+          explicitCategory: 'material'
         });
+        const previewSnippet = synthText.replace(/\s+/g, ' ').slice(0, 55);
+        showActiveMaterialBadge(`✨ Recognized in Block 1 ("${previewSnippet}${synthText.length > 55 ? '...' : ''}") — ${loadedStudioFiles.length} document(s) ready. Push "✨ Propose Lesson Plan Draft" in Block 2 when ready.`);
+        updateLessonPlanStatusPill(`Notes Recognized (${loadedStudioFiles.length} Doc(s) in Studio) — Waiting for Teacher to Generate Lesson Plan`, false);
       }
     } catch (err) {
       console.warn('Synthesis error:', err);
@@ -863,23 +869,143 @@ function renderMathSafe(el, attempt = 0) {
 }
 
 /**
+ * Gathers ALL loaded documents (curricula + course materials + any in-editor teacher notes)
+ * so every loaded document is used when building the Lesson Plan Draft.
+ */
+function collectAllLoadedDocumentsForDraft(explicitMaterials = null) {
+  const gradeLevel = document.getElementById('gradeSelect')?.value || 'Grade 12';
+  const subject = document.getElementById('subjectSelect')?.value || 'Mathematics';
+  const curSelect = document.getElementById('curriculumSelect');
+  const curriculumCode = curSelect?.value || 'canada';
+  const editorMat = materialStudioEditor ? materialStudioEditor.getValue().trim() : '';
+
+  const docs = loadedStudioFiles.map(f => ({ ...f }));
+
+  if (explicitMaterials !== null && String(explicitMaterials).trim()) {
+    const expText = String(explicitMaterials).trim();
+    const alreadyPresent = docs.some(d => d.content && expText.includes(d.content.slice(0, 80)));
+    if (!alreadyPresent) {
+      docs.push({
+        id: `doc-explicit-${Date.now().toString(36)}`,
+        title: (document.getElementById('titleInput')?.value || '').trim() || 'Selected Course Material',
+        content: expText,
+        source: attachedMaterialSource || 'Course Library',
+        docCategory: 'material',
+        curriculumCode,
+        gradeLevel,
+        subject
+      });
+    }
+  } else if (docs.length === 0 && editorMat) {
+    docs.push({
+      id: 'doc-editor-notes',
+      title: (document.getElementById('titleInput')?.value || '').trim() || 'Teacher Studio Reference Notes',
+      content: editorMat,
+      source: attachedMaterialSource || 'Block 1 Editor',
+      docCategory: 'material',
+      curriculumCode,
+      gradeLevel,
+      subject
+    });
+  } else if (docs.length > 0 && editorMat && editorMat !== lastLoadedMaterialText) {
+    if (docs.length === 1 && !/^===\s*\[/m.test(editorMat)) {
+      docs[0].content = editorMat;
+    } else {
+      const existingJoined = docs.map(d => d.content).join('\n');
+      const extraLines = editorMat
+        .split('\n')
+        .map(l => l.trim())
+        .filter(l => l.length > 6 && !l.startsWith('===') && !existingJoined.includes(l));
+      if (extraLines.length > 0) {
+        docs.push({
+          id: 'doc-extra-editor-notes',
+          title: 'Additional Teacher Studio Notes',
+          content: extraLines.join('\n'),
+          source: 'Block 1 Editor',
+          docCategory: 'material',
+          curriculumCode,
+          gradeLevel,
+          subject
+        });
+      }
+    }
+  }
+
+  // Include active MHF4U lesson curriculum expectations if selected
+  if (currentSelectedLesson && Array.isArray(currentSelectedLesson.specificExpectations) && currentSelectedLesson.specificExpectations.length > 0) {
+    const mhfTitle = `Ontario MHF4U Curriculum: ${currentSelectedLesson.title}`;
+    if (!docs.some(d => d.title === mhfTitle)) {
+      docs.unshift({
+        id: `cur-mhf4u-${currentSelectedLesson.id || 'unit'}`,
+        title: mhfTitle,
+        content: [
+          ...(currentSelectedLesson.overallExpectations || []),
+          ...(currentSelectedLesson.specificExpectations || [])
+        ].join('\n'),
+        source: 'Ontario MHF4U Curriculum',
+        docCategory: 'curriculum',
+        curriculumCode: 'canada',
+        gradeLevel: 'Grade 12',
+        subject: 'Mathematics'
+      });
+    }
+  }
+
+  // Include custom saved curriculum content if selected in #curriculumSelect and not yet in docs
+  const customCur = customCurricula.find(c => c.code === curriculumCode);
+  if (customCur && customCur.content && !docs.some(d => d.docCategory === 'curriculum' && d.title.includes(customCur.label))) {
+    docs.unshift({
+      id: `cur-custom-${customCur.code}`,
+      title: `Curriculum: ${customCur.label}`,
+      content: customCur.content,
+      source: 'Saved Curriculum Standard',
+      docCategory: 'curriculum',
+      curriculumCode: customCur.code,
+      gradeLevel,
+      subject
+    });
+  }
+
+  const curriculaFiles = docs.filter(f => f.docCategory === 'curriculum');
+  const materialFiles = docs.filter(f => f.docCategory !== 'curriculum');
+  const ordered = [...curriculaFiles, ...materialFiles];
+
+  const combinedMaterials = ordered.length > 1
+    ? ordered.map((f, idx) => {
+        const roleHeader = f.docCategory === 'curriculum' ? '📘 CURRICULUM STANDARD' : '📄 COURSE MATERIAL';
+        return `=== [${roleHeader} ${idx + 1}: ${f.title} (${f.source || 'Teacher Studio'})] ===\n${f.content}`;
+      }).join('\n\n')
+    : (explicitMaterials !== null ? String(explicitMaterials).trim() : (editorMat || lastLoadedMaterialText || ordered[0]?.content || '')).trim();
+
+  return {
+    loadedDocuments: ordered,
+    combinedMaterials,
+    curriculaCount: curriculaFiles.length,
+    materialsCount: materialFiles.length
+  };
+}
+
+/**
  * Generates Lesson Plan Draft + 30-Problem Exercise Pool (10 Level A, 10 Level B, 10 Level C)
- * grounded in Block 1 materials and teacher instructions.
+ * grounded in ALL Block 1 loaded curriculum documents, material documents, and teacher instructions.
  */
 async function triggerGenerateLessonDraft(options = {}) {
   const { preserveHeaderFields = false, explicitMaterials = null, explicitCourseName = null } = options;
   activePrepSection = 'lessonPlan';
 
-  const editorMat = materialStudioEditor ? materialStudioEditor.getValue().trim() : '';
-  const materials = (explicitMaterials !== null
-    ? explicitMaterials
-    : (editorMat || lastLoadedMaterialText)).trim();
+  const {
+    loadedDocuments,
+    combinedMaterials: materials,
+    curriculaCount,
+    materialsCount
+  } = collectAllLoadedDocumentsForDraft(explicitMaterials);
+
   const parsedWindow = parseUnifiedLessonPlanWindow();
   const teacherInstructions = parsedWindow.teacherInstructions;
   const manualTitle = (document.getElementById('titleInput')?.value || '').trim();
 
   // Guard 1: Never generate a Lesson Plan if the teacher hasn't entered or selected anything
-  if (!materials && !teacherInstructions && !manualTitle && !explicitCourseName) {
+  if (!materials && loadedDocuments.length === 0 && !teacherInstructions && !manualTitle && !explicitCourseName) {
     updateLessonPlanStatusPill('⚠️ Please import/type reference materials in Block 1 or enter a Lesson Plan Title first', false);
     return;
   }
@@ -893,15 +1019,24 @@ async function triggerGenerateLessonDraft(options = {}) {
 
   const btn = document.getElementById('generateLessonDraftBtn');
   const origHtml = btn ? btn.innerHTML : '';
+  const totalDocsCount = loadedDocuments.length;
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = '⏳ Generating Lesson Plan & 30-Problem Pool (10 per Tier A/B/C)...';
+    btn.innerHTML = totalDocsCount > 1
+      ? `⏳ Synthesizing ${totalDocsCount} Loaded Documents (${curriculaCount} Curriculum, ${materialsCount} Material) into Lesson Plan & 30-Problem Pool...`
+      : '⏳ Generating Lesson Plan & 30-Problem Pool (10 per Tier A/B/C)...';
   }
-  updateLessonPlanStatusPill('⏳ Generating Lesson Plan & 30 Problems...', false);
+  updateLessonPlanStatusPill(
+    totalDocsCount > 1
+      ? `⏳ Generating Lesson Plan from all ${totalDocsCount} Loaded Documents (${curriculaCount} Curriculum, ${materialsCount} Material)...`
+      : '⏳ Generating Lesson Plan & 30 Problems...',
+    false
+  );
 
   try {
     const gradeLevel = document.getElementById('gradeSelect')?.value || 'Grade 12';
     const subject = document.getElementById('subjectSelect')?.value || 'Mathematics';
+    const curriculum = document.getElementById('curriculumSelect')?.value || 'canada';
     const titleHint = preserveHeaderFields ? manualTitle : '';
     const courseName = explicitCourseName || lastLoadedCourseName || `${subject} (${gradeLevel}) ${titleHint}`.trim();
 
@@ -911,7 +1046,10 @@ async function triggerGenerateLessonDraft(options = {}) {
       body: JSON.stringify({
         courseName,
         gradeLevel,
+        subject,
+        curriculum,
         materials,
+        loadedDocuments,
         teacherInstructions
       })
     });
@@ -952,9 +1090,21 @@ async function triggerGenerateLessonDraft(options = {}) {
 
       const totalCount = (currentExercisePool.A?.length || 0) + (currentExercisePool.B?.length || 0) + (currentExercisePool.C?.length || 0);
       const repsLimit = Number(document.getElementById('repetitionsPerTierSelect')?.value || 3);
-      updateLessonPlanStatusPill(`✓ Ready: "${d.title}" (${totalCount} Problems Generated • ${repsLimit}/10 Selected per Tier)`, true);
-      if (attachedMaterialSource) {
-        showActiveMaterialBadge(`📚 ${attachedMaterialSource} — ✓ Lesson Plan "${d.title}" & 30-Problem Pool (${repsLimit}/10 per tier selected) generated below!`);
+      const usedMeta = d.documentsUsed || {
+        totalCount: totalDocsCount,
+        curriculaCount,
+        materialsCount,
+        allTitles: loadedDocuments.map(x => x.title)
+      };
+      const docsSummary = usedMeta.totalCount > 1
+        ? ` • All ${usedMeta.totalCount} Docs Used (${usedMeta.curriculaCount} Curriculum, ${usedMeta.materialsCount} Material)`
+        : '';
+      updateLessonPlanStatusPill(`✓ Ready: "${d.title}"${docsSummary} (${totalCount} Problems Generated • ${repsLimit}/10 Selected per Tier)`, true);
+      if (attachedMaterialSource || usedMeta.totalCount > 0) {
+        const namesLabel = (usedMeta.allTitles && usedMeta.allTitles.length > 0)
+          ? usedMeta.allTitles.join(' + ')
+          : attachedMaterialSource;
+        showActiveMaterialBadge(`📚 Used All ${usedMeta.totalCount || 1} Loaded Document(s) (${namesLabel}) — ✓ Lesson Plan "${d.title}" & ${totalCount}-Problem Pool (${repsLimit} per tier selected) generated below!`);
       }
       await saveCurrentLessonPlanToLibrary();
     }
@@ -1207,6 +1357,26 @@ function renderMaterialLibraryDropdown(selectItemId = '') {
  * runs automatic recognition, and combines all loaded files in the WYSIWYG Material Studio editor.
  */
 async function addLoadedFileToStudio({ title = '', content = '', source = 'Teacher Studio', explicitCategory = '' } = {}) {
+  // If the teacher already typed custom notes into the editor before loading their first file, preserve those notes in the stack
+  if (loadedStudioFiles.length === 0 && materialStudioEditor) {
+    const existingTyped = materialStudioEditor.getValue().trim();
+    if (existingTyped && existingTyped !== lastLoadedMaterialText && existingTyped !== String(content || '').trim()) {
+      loadedStudioFiles.push({
+        id: `file-typed-${Date.now().toString(36)}`,
+        title: 'Teacher Typed Notes',
+        content: existingTyped,
+        source: 'Block 1 Editor',
+        docCategory: 'material',
+        recognizedType: 'Teacher Reference Notes & Examples',
+        curriculum: 'Canada Ontario OSS',
+        curriculumCode: document.getElementById('curriculumSelect')?.value || 'canada',
+        gradeLevel: document.getElementById('gradeSelect')?.value || 'Grade 12',
+        subject: document.getElementById('subjectSelect')?.value || 'Mathematics',
+        formulasCount: 0
+      });
+    }
+  }
+
   const modeSel = document.getElementById('loadTargetCategorySelect')?.value || 'auto';
   const categoryHint = explicitCategory || (modeSel === 'auto' ? '' : modeSel);
 
@@ -1266,8 +1436,9 @@ function syncLoadedFilesToStudioEditor() {
     .join('\n\n');
 
   lastLoadedMaterialText = combinedText;
+  const allTitles = ordered.map(f => f.title).join(' + ');
   const latest = loadedStudioFiles[loadedStudioFiles.length - 1];
-  lastLoadedCourseName = `${latest.subject || 'Course'} (${latest.gradeLevel || 'Grade 12'}) ${latest.title}`;
+  lastLoadedCourseName = `${latest.subject || 'Course'} (${latest.gradeLevel || 'Grade 12'}) ${allTitles}`;
   materialStudioEditor?.setValue(combinedText);
 
   const curCount = curriculaFiles.length;
@@ -1615,6 +1786,10 @@ async function applySavedLessonPlanToStudio(plan) {
     milestones: plan.targetMilestones || [],
     teacherInstructions: plan.teacherInstructions || ''
   });
+  if (Array.isArray(plan.loadedDocuments) && plan.loadedDocuments.length > 0) {
+    loadedStudioFiles = plan.loadedDocuments.map(d => ({ ...d }));
+    renderLoadedStudioFilesList();
+  }
   if (plan.courseMaterials && materialStudioEditor) {
     lastLoadedMaterialText = plan.courseMaterials;
     materialStudioEditor.setValue(plan.courseMaterials);
@@ -1856,8 +2031,12 @@ function buildPayloadFromForm() {
         'Step 4 (Mastery Verification): Solve adaptive problems step by step and check domain restrictions ($x > 0$)'
       ];
 
+  const {
+    loadedDocuments: resolvedLoadedDocs,
+    combinedMaterials: multiFileCombinedMaterials
+  } = collectAllLoadedDocumentsForDraft();
   const editorMatVal = materialStudioEditor ? materialStudioEditor.getValue().trim() : '';
-  const resolvedMaterials = editorMatVal || lastLoadedMaterialText || `**Reference Sheet: Product, Quotient, and Power Laws of Logarithms (MHF4U Grade 12)**\n\n1. **Product Law**: $\\log_b(xy) = \\log_b(x) + \\log_b(y)$\n   Base Example: $\\log_2(4) + \\log_2(8) = \\log_2(32) = 5$\n\n2. **Quotient Law**: $\\log_b(x/y) = \\log_b(x) - \\log_b(y)$\n   Base Example: $\\log_3(27/3) = \\log_3(9) = 2$\n\n3. **Power Law**: $\\log_b(x^k) = k \\cdot \\log_b(x)$\n   Base Multi-Step Example: $2\\log_3(6) - \\log_3(4) = \\log_3(6^2) - \\log_3(4) = \\log_3(36/4) = \\log_3(9) = 2$`;
+  const resolvedMaterials = multiFileCombinedMaterials || editorMatVal || lastLoadedMaterialText || `**Reference Sheet: Product, Quotient, and Power Laws of Logarithms (MHF4U Grade 12)**\n\n1. **Product Law**: $\\log_b(xy) = \\log_b(x) + \\log_b(y)$\n   Base Example: $\\log_2(4) + \\log_2(8) = \\log_2(32) = 5$\n\n2. **Quotient Law**: $\\log_b(x/y) = \\log_b(x) - \\log_b(y)$\n   Base Example: $\\log_3(27/3) = \\log_3(9) = 2$\n\n3. **Power Law**: $\\log_b(x^k) = k \\cdot \\log_b(x)$\n   Base Multi-Step Example: $2\\log_3(6) - \\log_3(4) = \\log_3(6^2) - \\log_3(4) = \\log_3(36/4) = \\log_3(9) = 2$`;
 
   return {
     title: titleVal,
@@ -1889,6 +2068,7 @@ function buildPayloadFromForm() {
     selectedModel: modelVal[1] || 'gemini-3.1-flash-lite',
     targetMilestones: resolvedMilestones,
     levelConfigs: getLevelConfigsFromForm(),
+    loadedDocuments: resolvedLoadedDocs,
     courseMaterialsSource: attachedMaterialSource || 'Block 1 — Teacher Material Studio',
     courseMaterials: resolvedMaterials,
     teacherTelemetry: {
@@ -2233,17 +2413,17 @@ function setupEventListeners() {
     }
   });
 
-  document.getElementById('importDriveUrlBtn')?.addEventListener('click', () => {
+  document.getElementById('importDriveUrlBtn')?.addEventListener('click', async () => {
     const urlVal = document.getElementById('driveDirectUrlInput')?.value.trim() || '';
     if (!urlVal) return;
     prepMethodsUsed.add('google_drive');
     updatePrepMethodsBadges();
     const docText = `Imported Google Drive Document: ${urlVal}\n\n(Add or synthesize specific notes from your shared document above.)`;
-    lastLoadedMaterialText = docText;
-    materialStudioEditor?.setValue(docText);
-    attachedMaterialSource = `Google Drive Link (${urlVal.slice(0, 45)}...)`;
-    showActiveMaterialBadge(`☁️ Linked Google Drive Doc — Push "✨ Propose Lesson Plan Draft & Generate 30-Problem Pool" in Block 2 below when ready.`);
-    updateLessonPlanStatusPill('Material Loaded in Block 1 — Push "Propose Lesson Plan Draft" Button to Generate', false);
+    await addLoadedFileToStudio({
+      title: `Google Drive Link (${urlVal.slice(0, 42)})`,
+      content: docText,
+      source: 'Google Drive Link'
+    });
     const modal = document.getElementById('googleDriveModal');
     if (modal) modal.style.display = 'none';
   });
