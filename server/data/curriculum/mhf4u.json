@@ -1,0 +1,703 @@
+{
+  "courseId": "MHF4U",
+  "courseName": "Advanced Functions, Grade 12, University Preparation",
+  "subject": "Mathematics",
+  "curriculum": "canada",
+  "curriculumName": "Ontario Ministry of Education (OSS Grade 12)",
+  "description": "Extends students' experience with functions, investigating polynomial, rational, trigonometric, exponential, and logarithmic functions.",
+  "units": [
+    {
+      "id": "unit-1-polynomial-functions",
+      "number": 1,
+      "title": "Polynomial Functions",
+      "lessonsCount": 2,
+      "lessons": [
+        {
+          "id": "lesson-factor-theorem",
+          "number": 1,
+          "title": "Remainder and Factor Theorems for Cubic Polynomials",
+          "overallExpectations": [
+            "Demonstrate an understanding of polynomial division and the factor theorem",
+            "Factor polynomial expressions of degree higher than two"
+          ],
+          "specificExpectations": [
+            "Apply the Remainder Theorem: dividing P(x) by (x - a) yields remainder P(a)",
+            "Apply the Factor Theorem: (x - a) is a factor of P(x) if and only if P(a) = 0",
+            "Perform polynomial long division or synthetic division to factor fully"
+          ],
+          "materialsSnippet": "Factor Theorem Reference:\n1. If P(a) = 0, then (x - a) is a factor of polynomial P(x).\n2. Rational Zero Theorem: Possible integer roots of a_n*x^n + ... + a_0 are factors of constant term a_0 divided by factors of leading coefficient a_n.\n3. Long Division: P(x) = (x - a)Q(x) + R.",
+          "exerciseBank": {
+            "topic": "Factoring Cubic Polynomials",
+            "levelA": {
+              "id": "ex-poly-level-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Test a given linear factor using the Remainder / Factor Theorem",
+              "problem": "Determine if $(x - 2)$ is a factor of $P(x) = x^3 - 4x^2 + x + 6$.",
+              "targetAnswer": "Yes, $P(2) = 0$, so $(x - 2)$ is a factor.",
+              "solutionSteps": [
+                "Step 1: Calculate $P(2) = 2^3 - 4(2)^2 + 2 + 6$.",
+                "Step 2: Simplify: $8 - 16 + 2 + 6 = 0$.",
+                "Step 3: Since $P(2) = 0$, by the Factor Theorem $(x - 2)$ is a factor."
+              ],
+              "templateForGenerator": "Determine if $(x - a)$ is a factor of $x^3 + b x^2 + c x + d$."
+            },
+            "levelB": {
+              "id": "ex-poly-level-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Factor a cubic polynomial completely into linear factors",
+              "problem": "Factor completely over the reals: $P(x) = x^3 - 6x^2 + 11x - 6$.",
+              "targetAnswer": "$(x - 1)(x - 2)(x - 3)$",
+              "solutionSteps": [
+                "Step 1: Test $x = 1$: $P(1) = 1 - 6 + 11 - 6 = 0$, so $(x - 1)$ is a factor.",
+                "Step 2: Divide $P(x)$ by $(x - 1)$ using synthetic or long division to get quotient $x^2 - 5x + 6$.",
+                "Step 3: Factor quadratic quotient: $x^2 - 5x + 6 = (x - 2)(x - 3)$.",
+                "Step 4: Final factorization: $(x - 1)(x - 2)(x - 3)$."
+              ],
+              "templateForGenerator": "Factor completely: $x^3 - (a+b+c)x^2 + (ab+bc+ac)x - abc$ with small positive integers $a, b, c$."
+            },
+            "levelC": {
+              "id": "ex-poly-level-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Cubic polynomial with non-unit leading coefficient and rational roots",
+              "problem": "Factor fully: $P(x) = 2x^3 + 3x^2 - 8x + 3$.",
+              "targetAnswer": "$(2x - 1)(x - 1)(x + 3)$",
+              "solutionSteps": [
+                "Step 1: Test factors of constant 3 divided by factors of 2: possible roots $\\pm 1, \\pm 3, \\pm 1/2, \\pm 3/2$.",
+                "Step 2: $P(1) = 2(1) + 3(1) - 8(1) + 3 = 0$, so $(x - 1)$ is a factor.",
+                "Step 3: Divide by $(x - 1)$ gives $2x^2 + 5x - 3$.",
+                "Step 4: Factor $2x^2 + 5x - 3 = (2x - 1)(x + 3)$."
+              ],
+              "templateForGenerator": "Factor $a x^3 + b x^2 + c x + d$ with leading coefficient $a > 1$."
+            }
+          }
+        },
+        {
+          "id": "lesson-poly-inequalities",
+          "number": 2,
+          "title": "Solving Polynomial Inequalities with Sign Charts",
+          "overallExpectations": [
+            "Solve factorable polynomial inequalities algebraically and graphically"
+          ],
+          "specificExpectations": [
+            "Find real roots (zeros) of the inequality",
+            "Construct an interval sign chart to test regions",
+            "Express the solution set in interval notation"
+          ],
+          "materialsSnippet": "Steps for Polynomial Inequalities:\n1. Move all terms to one side: P(x) > 0 or P(x) <= 0.\n2. Factor P(x) completely to find critical values (zeros).\n3. Set up intervals on the real number line and test signs.\n4. Write the solution in interval notation [a, b] or (a, b).",
+          "exerciseBank": {
+            "topic": "Polynomial Inequalities",
+            "levelA": {
+              "id": "ex-poly-ineq-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Quadratic inequality already in factored form",
+              "problem": "Solve for $x$: $(x - 3)(x + 1) > 0$.",
+              "targetAnswer": "$x \\in (-\\infty, -1) \\cup (3, \\infty)$",
+              "solutionSteps": [
+                "Step 1: Critical numbers are $x = -1$ and $x = 3$.",
+                "Step 2: Check test values in intervals $(-\\infty, -1)$, $(-1, 3)$, and $(3, \\infty)$.",
+                "Step 3: Signs are positive for $x < -1$ and $x > 3$."
+              ],
+              "templateForGenerator": "Solve: $(x - a)(x - b) > 0$ with $a > b$."
+            },
+            "levelB": {
+              "id": "ex-poly-ineq-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Cubic inequality requiring factoring first",
+              "problem": "Solve for $x$: $x^3 - 4x \\le 0$.",
+              "targetAnswer": "$x \\in (-\\infty, -2] \\cup [0, 2]$",
+              "solutionSteps": [
+                "Step 1: Factor common term: $x(x^2 - 4) \\le 0$.",
+                "Step 2: Difference of squares: $x(x - 2)(x + 2) \\le 0$.",
+                "Step 3: Critical values: $-2, 0, 2$. Interval sign table gives negative intervals $(-\\infty, -2]$ and $[0, 2]$."
+              ],
+              "templateForGenerator": "Solve: $x^3 - k^2 x \\le 0$ where $k$ is integer."
+            },
+            "levelC": {
+              "id": "ex-poly-ineq-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Polynomial inequality with repeated roots and degree 4",
+              "problem": "Solve for $x$: $(x - 1)^2(x + 2)(x - 4) < 0$.",
+              "targetAnswer": "$x \\in (-2, 1) \\cup (1, 4)$",
+              "solutionSteps": [
+                "Step 1: Notice $(x - 1)^2 \\ge 0$ for all $x$, and zero at $x = 1$.",
+                "Step 2: For product to be strictly negative, $(x + 2)(x - 4) < 0$ and $x \\ne 1$.",
+                "Step 3: $(x + 2)(x - 4) < 0 \\implies x \\in (-2, 4)$. Exclude $x = 1$: $(-2, 1) \\cup (1, 4)$."
+              ],
+              "templateForGenerator": "Solve: $(x - a)^2(x - b)(x - c) < 0$."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-2-rational-functions",
+      "number": 2,
+      "title": "Rational Functions",
+      "lessonsCount": 2,
+      "lessons": [
+        {
+          "id": "lesson-rational-asymptotes",
+          "number": 1,
+          "title": "Vertical, Horizontal, and Oblique Asymptotes of Rational Functions",
+          "overallExpectations": [
+            "Determine the characteristics of rational functions including domain, range, intercepts, and asymptotes"
+          ],
+          "specificExpectations": [
+            "Identify vertical asymptotes from zeros of the denominator (not canceling zeros)",
+            "Identify horizontal asymptotes by comparing degrees of numerator and denominator",
+            "Identify oblique (slant) asymptotes when degree of numerator is 1 greater than denominator"
+          ],
+          "materialsSnippet": "Asymptotes of Rational Functions f(x) = P(x) / Q(x):\n1. Vertical Asymptotes: values where Q(x) = 0 and P(x) != 0.\n2. Horizontal Asymptotes:\n   - deg(P) < deg(Q) -> y = 0\n   - deg(P) = deg(Q) -> y = a_n / b_n\n   - deg(P) = deg(Q) + 1 -> Oblique asymptote found by division.",
+          "exerciseBank": {
+            "topic": "Finding Asymptotes of Rational Functions",
+            "levelA": {
+              "id": "ex-rat-level-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Find vertical and horizontal asymptotes of a linear rational function",
+              "problem": "Find the vertical and horizontal asymptotes of $f(x) = \\frac{3x + 1}{x - 4}$.",
+              "targetAnswer": "VA: $x = 4$, HA: $y = 3$",
+              "solutionSteps": [
+                "Step 1: Denominator $x - 4 = 0 \\implies x = 4$ (VA).",
+                "Step 2: Equal degrees (degree 1): ratio of leading coefficients is $3/1 = 3 \\implies y = 3$ (HA)."
+              ],
+              "templateForGenerator": "Find asymptotes of $f(x) = \\frac{a x + b}{x - c}$."
+            },
+            "levelB": {
+              "id": "ex-rat-level-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Rational function with holes (removable discontinuity) vs vertical asymptotes",
+              "problem": "Determine all vertical asymptotes and holes for $f(x) = \\frac{x^2 - 9}{x^2 - x - 6}$.",
+              "targetAnswer": "Hole at $x = 3$ (point $(3, 6/5)$), Vertical Asymptote at $x = -2$",
+              "solutionSteps": [
+                "Step 1: Factor numerator: $(x - 3)(x + 3)$.",
+                "Step 2: Factor denominator: $(x - 3)(x + 2)$.",
+                "Step 3: Factor $(x - 3)$ cancels $\\implies$ hole at $x = 3$. Remaining factor in denominator $(x + 2) = 0 \\implies x = -2$ (VA)."
+              ],
+              "templateForGenerator": "Find holes and VA for $\\frac{x^2 - a^2}{(x - a)(x + b)}$."
+            },
+            "levelC": {
+              "id": "ex-rat-level-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Oblique (slant) asymptote via polynomial division",
+              "problem": "Find the equation of the oblique asymptote of $f(x) = \\frac{2x^2 + 5x - 1}{x + 1}$.",
+              "targetAnswer": "$y = 2x + 3$",
+              "solutionSteps": [
+                "Step 1: Degree of numerator (2) is exactly 1 higher than denominator (1), so an oblique asymptote exists.",
+                "Step 2: Divide $2x^2 + 5x - 1$ by $x + 1$ using polynomial division.",
+                "Step 3: $2x^2 + 5x - 1 = (x + 1)(2x + 3) - 4$. Quotient is $2x + 3$, so oblique asymptote is $y = 2x + 3$."
+              ],
+              "templateForGenerator": "Find oblique asymptote of $\\frac{a x^2 + b x + c}{x - d}$."
+            }
+          }
+        },
+        {
+          "id": "lesson-rational-inequalities",
+          "number": 2,
+          "title": "Solving Rational Inequalities with Interval Tables",
+          "overallExpectations": [
+            "Solve rational inequalities algebraically using sign tables"
+          ],
+          "specificExpectations": [
+            "Obtain a single rational expression compared to zero",
+            "Identify restriction points where denominator is zero",
+            "Construct sign charts without cross-multiplying variables"
+          ],
+          "materialsSnippet": "Golden Rule for Rational Inequalities: NEVER cross-multiply expressions containing the variable, because the sign of the denominator could be negative! Always bring all terms to one side.",
+          "exerciseBank": {
+            "topic": "Rational Inequalities",
+            "levelA": {
+              "id": "ex-rat-ineq-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Simple rational inequality compared to zero",
+              "problem": "Solve for $x$: $\\frac{x - 3}{x + 2} > 0$.",
+              "targetAnswer": "$x \\in (-\\infty, -2) \\cup (3, \\infty)$",
+              "solutionSteps": [
+                "Step 1: Numerator zero at $x = 3$. Denominator restriction $x \\ne -2$.",
+                "Step 2: Test intervals $(-\\infty, -2)$, $(-2, 3)$, and $(3, \\infty)$.",
+                "Step 3: Ratio is positive for $x < -2$ and $x > 3$."
+              ],
+              "templateForGenerator": "Solve $\\frac{x - a}{x - b} > 0$."
+            },
+            "levelB": {
+              "id": "ex-rat-ineq-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Rational inequality compared to a non-zero constant",
+              "problem": "Solve for $x$: $\\frac{x + 1}{x - 2} \\le 2$.",
+              "targetAnswer": "$x \\in (-\\infty, 2) \\cup [5, \\infty)$",
+              "solutionSteps": [
+                "Step 1: Subtract 2 from both sides: $\\frac{x + 1}{x - 2} - 2 \\le 0$.",
+                "Step 2: Combine: $\\frac{(x + 1) - 2(x - 2)}{x - 2} = \\frac{-x + 5}{x - 2} \\le 0$.",
+                "Step 3: Critical values: $x = 5$ (numerator) and $x = 2$ (denominator). Solution: $(-\\infty, 2) \\cup [5, \\infty)$."
+              ],
+              "templateForGenerator": "Solve $\\frac{x + a}{x - b} \\le k$."
+            },
+            "levelC": {
+              "id": "ex-rat-ineq-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Rational inequality with two separate fractions",
+              "problem": "Solve for $x$: $\\frac{1}{x - 1} < \\frac{2}{x + 3}$.",
+              "targetAnswer": "$x \\in (-3, 1) \\cup (5, \\infty)$",
+              "solutionSteps": [
+                "Step 1: Subtract: $\\frac{1}{x - 1} - \\frac{2}{x + 3} < 0$.",
+                "Step 2: Common denominator: $\\frac{(x + 3) - 2(x - 1)}{(x - 1)(x + 3)} = \\frac{-x + 5}{(x - 1)(x + 3)} < 0$.",
+                "Step 3: Critical points $-3, 1, 5$. Sign analysis yields $x \\in (-3, 1) \\cup (5, \\infty)$."
+              ],
+              "templateForGenerator": "Solve $\\frac{1}{x - a} < \\frac{k}{x + b}$."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-3-trigonometric-functions",
+      "number": 3,
+      "title": "Trigonometric Functions",
+      "lessonsCount": 2,
+      "lessons": [
+        {
+          "id": "lesson-exact-trig-values",
+          "number": 1,
+          "title": "Radian Measure and Exact Values of Trigonometric Ratios",
+          "overallExpectations": [
+            "Demonstrate an understanding of radian measure and determine exact trigonometric ratios"
+          ],
+          "specificExpectations": [
+            "Convert between degrees and radians using $\\pi \\text{ rad} = 180^\\circ$",
+            "Determine exact values using special triangles ($\\/3, \\pi/4, \\pi/6$)",
+            "Apply the CAST rule to find signs in all four quadrants"
+          ],
+          "materialsSnippet": "Special Angles in Radians:\n- pi/6 (30 deg): sin=1/2, cos=sqrt(3)/2, tan=1/sqrt(3)\n- pi/4 (45 deg): sin=1/sqrt(2), cos=1/sqrt(2), tan=1\n- pi/3 (60 deg): sin=sqrt(3)/2, cos=1/2, tan=sqrt(3)\nCAST Rule: Q1: All, Q2: Sin, Q3: Tan, Q4: Cos.",
+          "exerciseBank": {
+            "topic": "Exact Trigonometric Values in Radians",
+            "levelA": {
+              "id": "ex-trig-level-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Exact value of a special angle in the first quadrant",
+              "problem": "Determine the exact value of $\\sin\\left(\\frac{\\pi}{3}\\right) + \\cos\\left(\\frac{\\pi}{6}\\right)$.",
+              "targetAnswer": "$\\sqrt{3}$",
+              "solutionSteps": [
+                "Step 1: $\\sin(\\pi/3) = \\frac{\\sqrt{3}}{2}$.",
+                "Step 2: $\\cos(\\pi/6) = \\frac{\\sqrt{3}}{2}$.",
+                "Step 3: Add: $\\frac{\\sqrt{3}}{2} + \\frac{\\sqrt{3}}{2} = \\sqrt{3}$."
+              ],
+              "templateForGenerator": "Evaluate $\\sin(\\theta_1) + \\cos(\\theta_2)$ for special angles."
+            },
+            "levelB": {
+              "id": "ex-trig-level-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Angle outside quadrant 1 using reference angle and CAST rule",
+              "problem": "Determine the exact value of $\\cos\\left(\\frac{5\\pi}{6}\\right) \\cdot \\tan\\left(\\frac{4\\pi}{3}\\right)$.",
+              "targetAnswer": "$-\\frac{3}{2}$",
+              "solutionSteps": [
+                "Step 1: $5\\pi/6$ is in Quadrant 2, reference angle $\\pi/6$. In Q2, cosine is negative $\\implies \\cos(5\\pi/6) = -\\frac{\\sqrt{3}}{2}$.",
+                "Step 2: $4\\pi/3$ is in Quadrant 3, reference angle $\\pi/3$. In Q3, tangent is positive $\\implies \\tan(4\\pi/3) = \\sqrt{3}$.",
+                "Step 3: Multiply: $\\left(-\\frac{\\sqrt{3}}{2}\\right) \\cdot \\sqrt{3} = -\\frac{3}{2}$."
+              ],
+              "templateForGenerator": "Evaluate $\\cos(\\theta_1) \\cdot \\tan(\\theta_2)$ for non-Q1 angles."
+            },
+            "levelC": {
+              "id": "ex-trig-level-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Compound angle formula with exact radical arithmetic",
+              "problem": "Use the compound angle formula $\\sin(A - B) = \\sin A \\cos B - \\cos A \\sin B$ to find the exact value of $\\sin\\left(\\frac{\\pi}{12}\\right)$.",
+              "targetAnswer": "$\\frac{\\sqrt{6} - \\sqrt{2}}{4}$",
+              "solutionSteps": [
+                "Step 1: Write $\\frac{\\pi}{12} = \\frac{\\pi}{4} - \\frac{\\pi}{6}$.",
+                "Step 2: Apply formula: $\\sin(\\pi/4)\\cos(\\pi/6) - \\cos(\\pi/4)\\sin(\\pi/6)$.",
+                "Step 3: Substitute exact values: $\\left(\\frac{\\sqrt{2}}{2}\\right)\\left(\\frac{\\sqrt{3}}{2}\\right) - \\left(\\frac{\\sqrt{2}}{2}\\right)\\left(\\frac{1}{2}\\right) = \\frac{\\sqrt{6} - \\sqrt{2}}{4}$."
+              ],
+              "templateForGenerator": "Evaluate $\\sin(\\pi/12)$ or $\\cos(\\pi/12)$ using compound angles."
+            }
+          }
+        },
+        {
+          "id": "lesson-trig-identities",
+          "number": 2,
+          "title": "Proving Trigonometric Identities",
+          "overallExpectations": [
+            "Prove trigonometric identities using Pythagorean, reciprocal, quotient, and double-angle formulas"
+          ],
+          "specificExpectations": [
+            "Work with Left Side (LS) and Right Side (RS) independently",
+            "Apply double angle formulas: $\\sin(2x) = 2\\sin x \\cos x$, $\\cos(2x) = \\cos^2 x - \\sin^2 x$",
+            "Simplify using Pythagorean identity $\\sin^2 x + \\cos^2 x = 1$"
+          ],
+          "materialsSnippet": "Double Angle Identities:\n1. sin(2x) = 2 sin(x) cos(x)\n2. cos(2x) = cos^2(x) - sin^2(x) = 2cos^2(x) - 1 = 1 - 2sin^2(x)\n3. tan(2x) = 2tan(x) / (1 - tan^2(x))",
+          "exerciseBank": {
+            "topic": "Trigonometric Identities",
+            "levelA": {
+              "id": "ex-trig-id-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Simplify a single-side trigonometric expression",
+              "problem": "Simplify: $\\frac{\\sin(2x)}{2\\cos(x)}$.",
+              "targetAnswer": "$\\sin(x)$",
+              "solutionSteps": [
+                "Step 1: Substitute double angle formula: $\\sin(2x) = 2\\sin(x)\\cos(x)$.",
+                "Step 2: $\\frac{2\\sin(x)\\cos(x)}{2\\cos(x)}$. Cancel 2 and $\\cos(x)$ to obtain $\\sin(x)$."
+              ],
+              "templateForGenerator": "Simplify $\\frac{\\sin(2x)}{k \\cos(x)}$."
+            },
+            "levelB": {
+              "id": "ex-trig-id-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Prove a standard double angle identity",
+              "problem": "Prove the identity: $\\frac{1 - \\cos(2x)}{\\sin(2x)} = \\tan(x)$.",
+              "targetAnswer": "$LS = RS = \\tan(x)$",
+              "solutionSteps": [
+                "Step 1: On LS, replace $\\cos(2x)$ with $1 - 2\\sin^2(x)$: numerator becomes $1 - (1 - 2\\sin^2(x)) = 2\\sin^2(x)$.",
+                "Step 2: Replace denominator $\\sin(2x)$ with $2\\sin(x)\\cos(x)$.",
+                "Step 3: $LS = \\frac{2\\sin^2(x)}{2\\sin(x)\\cos(x)} = \\frac{\\sin(x)}{\\cos(x)} = \\tan(x) = RS$."
+              ],
+              "templateForGenerator": "Prove $\\frac{1 - \\cos(2x)}{\\sin(2x)} = \\tan(x)$."
+            },
+            "levelC": {
+              "id": "ex-trig-id-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Multi-step identity with reciprocal functions and common denominators",
+              "problem": "Prove: $\\frac{\\sin(2x)}{1 + \\cos(2x)} \\cdot \\frac{\\cos(x)}{1 + \\cos(x)} = \\tan\\left(\\frac{x}{2}\\right)$.",
+              "targetAnswer": "Identity verified with half-angle reduction.",
+              "solutionSteps": [
+                "Step 1: First fraction: $\\frac{2\\sin x \\cos x}{2\\cos^2 x} = \\tan x = \\frac{\\sin x}{\\cos x}$.",
+                "Step 2: Multiply by second fraction: $\\frac{\\sin x}{\\cos x} \\cdot \\frac{\\cos x}{1 + \\cos x} = \\frac{\\sin x}{1 + \\cos x}$.",
+                "Step 3: Recognize $\\frac{\\sin x}{1 + \\cos x} = \\tan(x/2)$ by standard half-angle identity."
+              ],
+              "templateForGenerator": "Multi-step identity combining double angle and half angle."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-4-exponential-functions",
+      "number": 4,
+      "title": "Exponential Functions",
+      "lessonsCount": 2,
+      "lessons": [
+        {
+          "id": "lesson-exp-transformations",
+          "number": 1,
+          "title": "Transformations of Exponential Functions",
+          "overallExpectations": [
+            "Demonstrate an understanding of exponential functions of the form $f(x) = a \\cdot b^{k(x - d)} + c$"
+          ],
+          "specificExpectations": [
+            "Identify vertical stretch/compression ($a$) and horizontal stretch/compression ($1/k$)",
+            "Identify horizontal translation ($d$) and vertical translation ($c$)",
+            "State the horizontal asymptote $y = c$ and range"
+          ],
+          "materialsSnippet": "General Exponential Form: y = a * b^(k(x - d)) + c.\n- Horizontal Asymptote: y = c.\n- If a > 0, Range: {y in R | y > c}.\n- If a < 0, Range: {y in R | y < c}.",
+          "exerciseBank": {
+            "topic": "Transformations of Exponential Functions",
+            "levelA": {
+              "id": "ex-exp-level-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Find horizontal asymptote and range of transformed exponential function",
+              "problem": "State the equation of the horizontal asymptote and the range for $f(x) = 3 \\cdot 2^{x - 1} - 5$.",
+              "targetAnswer": "Asymptote: $y = -5$, Range: $\\{y \\in \\mathbb{R} \\mid y > -5\\}$",
+              "solutionSteps": [
+                "Step 1: Vertical shift is $c = -5$, so horizontal asymptote is $y = -5$.",
+                "Step 2: Leading multiplier $a = 3 > 0$, so function values lie strictly above asymptote: Range is $y > -5$."
+              ],
+              "templateForGenerator": "State asymptote and range for $a \\cdot b^{x - d} + c$."
+            },
+            "levelB": {
+              "id": "ex-exp-level-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Mapping notation for exponential transformations",
+              "problem": "For $g(x) = -2 \\cdot 3^{2(x + 4)} + 1$, state the transformation coordinates mapping $(x, y) \\to (x', y')$ from base $y = 3^x$.",
+              "targetAnswer": "$(x, y) \\to \\left(\\frac{x}{2} - 4, -2y + 1\\right)$",
+              "solutionSteps": [
+                "Step 1: Horizontal factor $k = 2 \\implies x/2$; shift $d = -4 \\implies x/2 - 4$.",
+                "Step 2: Vertical stretch $a = -2 \\implies -2y$; shift $c = 1 \\implies -2y + 1$."
+              ],
+              "templateForGenerator": "Find mapping notation for $a \\cdot b^{k(x - d)} + c$."
+            },
+            "levelC": {
+              "id": "ex-exp-level-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Determine the equation of an exponential function from key features",
+              "problem": "An exponential function has horizontal asymptote $y = 4$, $y$-intercept $(0, 1)$, and passes through $(1, -2)$. Find its equation in form $f(x) = a \\cdot b^x + c$.",
+              "targetAnswer": "$f(x) = -3 \\cdot 2^x + 4$",
+              "solutionSteps": [
+                "Step 1: Horizontal asymptote $y = 4 \\implies c = 4$.",
+                "Step 2: Using $(0, 1)$: $1 = a(b^0) + 4 \\implies 1 = a + 4 \\implies a = -3$.",
+                "Step 3: Using $(1, -2)$: $-2 = -3(b^1) + 4 \\implies -6 = -3b \\implies b = 2$. Equation: $f(x) = -3 \\cdot 2^x + 4$."
+              ],
+              "templateForGenerator": "Find equation $a \\cdot b^x + c$ given asymptote and two points."
+            }
+          }
+        },
+        {
+          "id": "lesson-exp-growth-decay",
+          "number": 2,
+          "title": "Modeling Exponential Growth and Decay",
+          "overallExpectations": [
+            "Solve real-world problems modeled by exponential growth, half-life, and compounding interest"
+          ],
+          "specificExpectations": [
+            "Use $A(t) = A_0 (1 + r)^t$ for growth and $A(t) = A_0 (1/2)^{t/h}$ for half-life",
+            "Solve for future values and doubling times"
+          ],
+          "materialsSnippet": "Formulas:\n1. Half-Life: N(t) = N_0 * (1/2)^(t / t_half)\n2. Doubling: N(t) = N_0 * 2^(t / d)\n3. Continuous Growth: N(t) = N_0 * e^(kt)",
+          "exerciseBank": {
+            "topic": "Exponential Growth and Decay Problems",
+            "levelA": {
+              "id": "ex-exp-app-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Calculate radioactive mass remaining after exact multiple of half-lives",
+              "problem": "A 200 mg sample of Iodine-131 has a half-life of 8 days. How much remains after 24 days?",
+              "targetAnswer": "$25\\text{ mg}$",
+              "solutionSteps": [
+                "Step 1: Number of half-lives: $n = 24 / 8 = 3$.",
+                "Step 2: $A(24) = 200 \\cdot (1/2)^3 = 200 / 8 = 25\\text{ mg}$."
+              ],
+              "templateForGenerator": "Calculate remaining mass for $N_0$ with half-life $h$ after time $t$."
+            },
+            "levelB": {
+              "id": "ex-exp-app-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Compound interest formula solving for final accumulated amount",
+              "problem": "An investment of $\\$5000$ earns $6\\%$ annual interest compounded quarterly. What is the value after 5 years? (Express in exact formula and round to 2 decimals).",
+              "targetAnswer": "$\\$6734.28$",
+              "solutionSteps": [
+                "Step 1: Formula: $A = P(1 + r/n)^{nt}$. Here $P = 5000, r = 0.06, n = 4, t = 5$.",
+                "Step 2: $A = 5000(1 + 0.015)^{20} = 5000(1.015)^{20}$.",
+                "Step 3: $5000 \\cdot 1.346855 = \\$6734.28$."
+              ],
+              "templateForGenerator": "Compound interest calculation for principal $P$, rate $r$, frequency $n$."
+            },
+            "levelC": {
+              "id": "ex-exp-app-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Solving for time parameter in half-life decay model",
+              "problem": "A substance decays from 500 grams to 125 grams in 36 hours. What is its half-life, and how much will remain after 72 hours?",
+              "targetAnswer": "Half-life $= 18\\text{ hours}$, Remaining after 72 hours $= 31.25\\text{ grams}$",
+              "solutionSteps": [
+                "Step 1: $125 / 500 = 1/4 = (1/2)^2$, so 2 half-lives have elapsed in 36 hours.",
+                "Step 2: Half-life $h = 36 / 2 = 18\\text{ hours}$.",
+                "Step 3: At $t = 72\\text{ hours}$, number of half-lives is $72 / 18 = 4$. Remaining: $500 \\cdot (1/2)^4 = 500 / 16 = 31.25\\text{ grams}$."
+              ],
+              "templateForGenerator": "Find half-life and future value from initial and intermediate values."
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "unit-5-logarithmic-functions",
+      "number": 5,
+      "title": "Logarithmic Functions",
+      "lessonsCount": 3,
+      "lessons": [
+        {
+          "id": "lesson-laws-of-logarithms",
+          "number": 1,
+          "title": "Product, Quotient, and Power Laws of Logarithms",
+          "overallExpectations": [
+            "Demonstrate an understanding of the relationships between exponential expressions and logarithmic expressions",
+            "Evaluate exponential and logarithmic expressions and simplify expressions using logarithmic laws"
+          ],
+          "specificExpectations": [
+            "Recognize the equivalence between algebraic laws of exponents and laws of logarithms",
+            "Apply the Product Law: \\log_b(xy) = \\log_b(x) + \\log_b(y) to simplify expressions",
+            "Apply the Quotient Law: \\log_b(\\frac{x}{y}) = \\log_b(x) - \\log_b(y) to simplify expressions",
+            "Apply the Power Law: \\log_b(x^k) = k \\cdot \\log_b(x) to bring coefficients into exponents and vice-versa"
+          ],
+          "materialsSnippet": "Laws of Logarithms Reference Sheet:\n1. Product Law: log_b(M * N) = log_b(M) + log_b(N), for b > 0, b != 1, M > 0, N > 0.\n2. Quotient Law: log_b(M / N) = log_b(M) - log_b(N), for b > 0, b != 1, M > 0, N > 0.\n3. Power Law: log_b(M^p) = p * log_b(M), for p in Real numbers.\nNote on Order of Operations: Power Law must be applied to coefficients BEFORE combining with Product or Quotient Law (e.g. 2*log(x) - log(y) = log(x^2) - log(y) = log(x^2 / y)).",
+          "exerciseBank": {
+            "topic": "Simplifying and Evaluating Logarithmic Expressions",
+            "levelA": {
+              "id": "ex-log-level-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Direct application of a single logarithmic law with identical bases",
+              "problem": "Simplify into a single logarithm: $\\log_2(8) + \\log_2(4)$",
+              "targetAnswer": "\\log_2(32) = 5",
+              "solutionSteps": [
+                "Step 1: Check bases. Both logarithms have base 2.",
+                "Step 2: Apply the Product Law: $\\log_b(M) + \\log_b(N) = \\log_b(M \\cdot N)$. Here $8 \\cdot 4 = 32$.",
+                "Step 3: Evaluate $\\log_2(32) = 5$ since $2^5 = 32$."
+              ],
+              "templateForGenerator": "Simplify into a single logarithm: log_{base}(M) + log_{base}(N) where M, N are powers of base."
+            },
+            "levelB": {
+              "id": "ex-log-level-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Multi-rule combination: Power Law and Quotient Law with numerical values",
+              "problem": "Simplify into a single numerical value: $2\\log_3(6) - \\log_3(4)$",
+              "targetAnswer": "2",
+              "solutionSteps": [
+                "Step 1: Apply Power Law to the first term: $2\\log_3(6) = \\log_3(6^2) = \\log_3(36)$.",
+                "Step 2: Apply Quotient Law to subtract logarithms: $\\log_3(36) - \\log_3(4) = \\log_3(36 / 4) = \\log_3(9)$.",
+                "Step 3: Evaluate $\\log_3(9) = 2$ since $3^2 = 9$."
+              ],
+              "templateForGenerator": "Simplify into a single value: k * log_{b}(M) - log_{b}(N) where M^k / N is an integer power of b."
+            },
+            "levelC": {
+              "id": "ex-log-level-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Multi-step algebraic expression involving all three laws and fractional powers",
+              "problem": "Express as a single logarithm with positive exponents: $3\\log_a(x) - \\frac{1}{2}\\log_a(y) + 2\\log_a(z)$ (where $x, y, z > 0$)",
+              "targetAnswer": "\\log_a\\left(\\frac{x^3 z^2}{\\sqrt{y}}\\right)",
+              "solutionSteps": [
+                "Step 1: Apply Power Law to each term: $\\log_a(x^3) - \\log_a(y^{1/2}) + \\log_a(z^2) = \\log_a(x^3) - \\log_a(\\sqrt{y}) + \\log_a(z^2)$.",
+                "Step 2: Group positive terms using Product Law: $\\log_a(x^3) + \\log_a(z^2) = \\log_a(x^3 z^2)$.",
+                "Step 3: Combine with subtraction using Quotient Law: $\\log_a(x^3 z^2) - \\log_a(\\sqrt{y}) = \\log_a\\left(\\frac{x^3 z^2}{\\sqrt{y}}\\right)$."
+              ],
+              "templateForGenerator": "Express as a single logarithm: $c_1\\log_a(x) - c_2\\log_a(y) + c_3\\log_a(z)$ with fractional and integer coefficients."
+            }
+          }
+        },
+        {
+          "id": "lesson-power-law",
+          "number": 2,
+          "title": "The Power Law and Solving Exponential Equations",
+          "overallExpectations": [
+            "Solve exponential equations using logarithms"
+          ],
+          "specificExpectations": [
+            "Take the logarithm of both sides to isolate an unknown exponent",
+            "Apply the Power Law $\\log(a^x) = x \\log(a)$",
+            "Express solutions in exact form and decimal approximation"
+          ],
+          "materialsSnippet": "Solving a^x = b using Logarithms:\n1. Take log (base 10 or natural log) of both sides: log(a^x) = log(b).\n2. Power Law pulls exponent down: x * log(a) = log(b).\n3. Divide: x = log(b) / log(a).",
+          "exerciseBank": {
+            "topic": "Solving Exponential Equations with Logarithms",
+            "levelA": {
+              "id": "ex-pow-level-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Simple exponential equation solved using common logarithms",
+              "problem": "Solve for $x$: $5^x = 125$.",
+              "targetAnswer": "$x = 3$",
+              "solutionSteps": [
+                "Step 1: Express 125 as a power of 5: $125 = 5^3$.",
+                "Step 2: Equate exponents: $x = 3$."
+              ],
+              "templateForGenerator": "Solve $b^x = b^k$ for small positive integer $k$."
+            },
+            "levelB": {
+              "id": "ex-pow-level-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Exponential equation where base cannot be factored into common power",
+              "problem": "Solve for $x$: $3^{2x - 1} = 20$. Express $x$ in exact logarithmic form.",
+              "targetAnswer": "$x = \\frac{\\log(20) + \\log(3)}{2\\log(3)} = \\frac{\\log(60)}{2\\log(3)}$",
+              "solutionSteps": [
+                "Step 1: Take log of both sides: $\\log(3^{2x - 1}) = \\log(20)$.",
+                "Step 2: Apply Power Law: $(2x - 1)\\log(3) = \\log(20)$.",
+                "Step 3: Expand: $2x \\log(3) - \\log(3) = \\log(20)$.",
+                "Step 4: Isolate $x$: $2x \\log(3) = \\log(20) + \\log(3) \\implies x = \\frac{\\log(60)}{2\\log(3)}$."
+              ],
+              "templateForGenerator": "Solve $a^{k x - d} = c$ for integer coefficients."
+            },
+            "levelC": {
+              "id": "ex-pow-level-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Exponential equation with different bases on both sides",
+              "problem": "Solve for $x$: $2^{x + 1} = 5^{2x - 3}$.",
+              "targetAnswer": "$x = \\frac{\\log(2) + 3\\log(5)}{2\\log(5) - \\log(2)}$",
+              "solutionSteps": [
+                "Step 1: Take log of both sides: $\\log(2^{x + 1}) = \\log(5^{2x - 3})$.",
+                "Step 2: Apply Power Law: $(x + 1)\\log(2) = (2x - 3)\\log(5)$.",
+                "Step 3: Expand: $x\\log(2) + \\log(2) = 2x\\log(5) - 3\\log(5)$.",
+                "Step 4: Collect $x$ terms: $\\log(2) + 3\\log(5) = x(2\\log(5) - \\log(2)) \\implies x = \\frac{\\log(2) + 3\\log(5)}{2\\log(5) - \\log(2)}$."
+              ],
+              "templateForGenerator": "Solve $a^{x + c_1} = b^{k x - c_2}$ with distinct prime bases $a, b$."
+            }
+          }
+        },
+        {
+          "id": "lesson-solving-log-equations",
+          "number": 3,
+          "title": "Solving Logarithmic Equations and Checking Extraneous Roots",
+          "overallExpectations": [
+            "Solve logarithmic equations and identify extraneous roots due to domain restrictions"
+          ],
+          "specificExpectations": [
+            "Combine logarithms using product/quotient laws to reach form $\\log_b(f(x)) = c$ or $\\log_b(f(x)) = \\log_b(g(x))$",
+            "Convert to exponential form to solve algebraically",
+            "Check domain restriction: argument of any logarithm must be strictly positive ($x > 0$)"
+          ],
+          "materialsSnippet": "Solving Logarithmic Equations:\n1. Apply product/quotient laws to obtain a single logarithm on one or both sides.\n2. If log_b(A) = c, convert to exponential form: A = b^c.\n3. If log_b(A) = log_b(B), equate arguments: A = B.\n4. CRITICAL: Check for extraneous roots! Any solution that results in log(non-positive) must be rejected.",
+          "exerciseBank": {
+            "topic": "Solving Logarithmic Equations",
+            "levelA": {
+              "id": "ex-logeq-level-a",
+              "level": "A",
+              "levelName": "Foundational (Level A)",
+              "description": "Direct conversion from logarithmic to exponential form",
+              "problem": "Solve for $x$: $\\log_4(2x + 8) = 3$.",
+              "targetAnswer": "$x = 28$",
+              "solutionSteps": [
+                "Step 1: Convert to exponential form: $2x + 8 = 4^3 = 64$.",
+                "Step 2: Solve: $2x = 56 \\implies x = 28$.",
+                "Step 3: Verify restriction: $2(28) + 8 = 64 > 0$ (valid solution)."
+              ],
+              "templateForGenerator": "Solve $\\log_b(k x + c) = d$."
+            },
+            "levelB": {
+              "id": "ex-logeq-level-b",
+              "level": "B",
+              "levelName": "Proficient (Level B)",
+              "description": "Combine logarithms and reject an extraneous root",
+              "problem": "Solve for $x$: $\\log_2(x) + \\log_2(x - 2) = 3$.",
+              "targetAnswer": "$x = 4$ ($x = -2$ is extraneous)",
+              "solutionSteps": [
+                "Step 1: Restrictions: $x > 0$ and $x - 2 > 0 \\implies x > 2$.",
+                "Step 2: Apply Product Law: $\\log_2(x(x - 2)) = 3$.",
+                "Step 3: Convert to exponential: $x(x - 2) = 2^3 = 8$.",
+                "Step 4: Form quadratic: $x^2 - 2x - 8 = 0 \\implies (x - 4)(x + 2) = 0$.",
+                "Step 5: $x = 4$ or $x = -2$. Since $x > 2$, $x = -2$ is extraneous. Final solution: $x = 4$."
+              ],
+              "templateForGenerator": "Solve $\\log_b(x) + \\log_b(x - k) = d$."
+            },
+            "levelC": {
+              "id": "ex-logeq-level-c",
+              "level": "C",
+              "levelName": "Advanced (Level C)",
+              "description": "Quotient law with rational expression and extraneous root rejection",
+              "problem": "Solve for $x$: $\\log_3(x + 5) - \\log_3(x - 1) = 2$.",
+              "targetAnswer": "$x = \\frac{7}{4}$",
+              "solutionSteps": [
+                "Step 1: Domain restrictions: $x + 5 > 0$ and $x - 1 > 0 \\implies x > 1$.",
+                "Step 2: Apply Quotient Law: $\\log_3\\left(\\frac{x + 5}{x - 1}\\right) = 2$.",
+                "Step 3: Convert to exponential: $\\frac{x + 5}{x - 1} = 3^2 = 9$.",
+                "Step 4: Cross multiply: $x + 5 = 9(x - 1) \\implies x + 5 = 9x - 9$.",
+                "Step 5: $8x = 14 \\implies x = 14/8 = 7/4 = 1.75$. Since $1.75 > 1$, it is a valid root."
+              ],
+              "templateForGenerator": "Solve $\\log_b(x + a) - \\log_b(x - b) = c$."
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

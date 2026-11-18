@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SocratesAI — WYSIWYG Math Demo</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathlive"></script>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a2e;
+      --panel2: #0f1626;
+      --border: rgba(255, 255, 255, 0.10);
+      --text: #e5e7eb;
+      --muted: #94a3b8;
+      --cyan: #38bdf8;
+      --green: #34d399;
+      --pink: #f472b6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 24px;
+      background: var(--bg); color: var(--text);
+      font-family: "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+      font-size: 15px;
+    }
+    h1 { font-size: 1.35rem; margin: 0 0 6px 0; }
+    h2 { font-size: 1.05rem; margin: 0 0 14px 0; display: flex; align-items: center; gap: 8px; }
+    .sub { color: var(--muted); font-size: 0.85rem; margin: 0 0 18px 0; }
+
+    .howto {
+      background: rgba(56, 189, 248, 0.06); border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 10px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.85rem; line-height: 1.8;
+    }
+    .howto b { color: #fff; }
+    .howto code { color: #a5b4fc; }
+    kbd {
+      background: #1e293b; border: 1px solid #334155; border-bottom-width: 2px;
+      border-radius: 4px; padding: 0 5px; font-size: 0.78rem; font-family: inherit; color: #e2e8f0;
+    }
+
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 1000px) { .cols { grid-template-columns: 1fr; } }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .label { font-size: 0.8rem; font-weight: 600; color: var(--muted); margin: 14px 0 6px 0; display: block; }
+
+    /* ---------- Toolbar ---------- */
+    .mte-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+    .mte-btn {
+      background: rgba(99, 102, 241, 0.12); color: #c7d2fe;
+      border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 5px;
+      padding: 3px 9px; font-size: 0.8rem; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .mte-btn:hover { background: rgba(99, 102, 241, 0.28); color: #fff; }
+    .mte-btn.main { background: linear-gradient(135deg, #0ea5e9, #6366f1); color: #fff; border: none; }
+
+    /* ---------- Mixed text + live math editor ---------- */
+    .mte {
+      min-height: 90px; padding: 12px 14px;
+      background: var(--panel2); border: 1px solid var(--border); border-radius: 8px;
+      white-space: pre-wrap; word-wrap: break-word; line-height: 2; outline: none;
+      font-size: 1rem; color: var(--text); cursor: text;
+    }
+    .mte:focus-within { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15); }
+    .mte.small { min-height: 48px; }
+    .mte[data-empty="true"]::before { content: attr(data-placeholder); color: #64748b; pointer-events: none; }
+
+    .math-inline { display: inline-block; vertical-align: middle; margin: 0 1px; }
+    .math-inline math-field {
+      display: inline-block; font-size: 1.12rem; min-width: 16px;
+      padding: 0 3px; border-radius: 4px; border: 1px solid transparent;
+      background: transparent; color: #fff; outline: none;
+      --caret-color: #38bdf8; --selection-background-color: rgba(56, 189, 248, 0.3);
+      --placeholder-color: #38bdf8; --smart-fence-color: #94a3b8;
+    }
+    .math-inline math-field:hover { background: rgba(56, 189, 248, 0.08); }
+    .math-inline math-field:focus-within { background: rgba(56, 189, 248, 0.12); border-color: rgba(56, 189, 248, 0.45); }
+    .math-inline math-field::part(virtual-keyboard-toggle),
+    .math-inline math-field::part(menu-toggle) { display: none; }
+    .math-inline math-field::part(content) { padding: 0; }
+
+    /* ---------- Standalone formula fields (Target Answer etc.) ---------- */
+    math-field.standalone {
+      display: block; flex: 1; font-size: 1.25rem; padding: 6px 10px; border-radius: 6px;
+      background: var(--panel2); color: #fff; border: 1px solid var(--border); outline: none;
+      --caret-color: #38bdf8; --selection-background-color: rgba(56, 189, 248, 0.3);
+      --placeholder-color: #38bdf8;
+    }
+    math-field.standalone:focus-within { border-color: var(--cyan); }
+    math-field.standalone::part(menu-toggle) { display: none; }
+    math-field.standalone::part(virtual-keyboard-toggle) { color: var(--cyan); }
+
+    .btn {
+      border: none; border-radius: 8px; padding: 9px 16px; font-weight: 700; cursor: pointer;
+      font-family: inherit; font-size: 0.88rem;
+    }
+    .btn-primary { background: linear-gradient(135deg, #10b981, #059669); color: #fff; }
+    .btn-indigo { background: linear-gradient(135deg, #6366f1, #4f46e5); color: #fff; }
+
+    /* ---------- Student side ---------- */
+    .assignment {
+      background: var(--panel2); border: 1px solid rgba(129, 140, 248, 0.35); border-radius: 10px;
+      padding: 14px 16px; line-height: 1.9; min-height: 60px;
+    }
+    .chat { display: flex; flex-direction: column; gap: 10px; max-height: 340px; overflow-y: auto; margin: 10px 0; }
+    .bubble { padding: 10px 14px; border-radius: 12px; line-height: 1.8; max-width: 92%; }
+    .bubble.tutor { background: rgba(99, 102, 241, 0.14); border: 1px solid rgba(99, 102, 241, 0.3); align-self: flex-start; }
+    .bubble.student { background: rgba(16, 185, 129, 0.14); border: 1px solid rgba(16, 185, 129, 0.3); align-self: flex-end; }
+    .bubble .who { font-size: 0.7rem; color: var(--muted); font-weight: 700; margin-bottom: 2px; }
+    .send-row { display: flex; gap: 8px; align-items: flex-end; }
+    .send-row .mte-wrap { flex: 1; }
+    .result { font-size: 0.85rem; margin-top: 8px; font-weight: 600; }
+    .katex { font-size: 1.08em; }
+
+    details { margin-top: 22px; font-size: 0.8rem; color: var(--muted); }
+    details pre {
+      background: #020617; border: 1px solid var(--border); border-radius: 8px; padding: 10px;
+      white-space: pre-wrap; color: #a5b4fc; font-size: 0.8rem;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🧪 WYSIWYG-формулы: демо для проверки</h1>
+  <p class="sub">Формулы оформляются прямо при наборе — в том же поле, без окошек и без Preview.</p>
+
+  <div class="howto">
+    <b>Просто печатайте:</b>
+    <code>5/</code> → дробь ·
+    <code>x^</code> → степень ·
+    <code>log36</code> → log₃(6) (после основания курсор сам переходит в аргумент; <kbd>←</kbd> назад в основание, <kbd>→</kbd> снова в аргумент) ·
+    <code>sin</code> / <code>cos</code> / <code>tan</code> / <code>ln</code> → сразу в аргумент (а <code>sin^2x</code> → sin²(x)) ·
+    <code>sqrt</code> → √ ·
+    <code>*</code> → · · <code>&lt;=</code> → ≤ · <code>&gt;=</code> → ≥ · <code>!=</code> → ≠<br>
+    <b>Выйти из формулы в обычный текст:</b> <kbd>Пробел</kbd> (в конце формулы), <kbd>→</kbd>, <kbd>Enter</kbd> или <kbd>Esc</kbd>.
+    <b>Вернуться в формулу:</b> клик по ней, или <kbd>←</kbd> / <kbd>→</kbd> / <kbd>Backspace</kbd> рядом с ней.<br>
+    <b>Длинная формула с пробелами:</b> кнопка <b>∑ Формула</b> или <kbd>Ctrl</kbd>+<kbd>M</kbd> — тогда пробел не выходит из формулы (выход: <kbd>→</kbd> / <kbd>Enter</kbd>).
+  </div>
+
+  <div class="cols">
+    <!-- ================= TEACHER ================= -->
+    <section class="panel">
+      <h2>👩‍🏫 Учитель — создание задания</h2>
+
+      <span class="label">Initial Problem & Inquiry Prompt</span>
+      <div class="mte-wrap" id="teacherPromptWrap"></div>
+
+      <span class="label">Level B — Problem Prompt</span>
+      <div class="mte-wrap" id="levelBWrap"></div>
+
+      <span class="label">Level B — Target Answer (только формула)</span>
+      <math-field class="standalone" id="targetAnswer" math-virtual-keyboard-policy="sandboxed">2</math-field>
+
+      <div style="margin-top:18px; display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-primary" id="btnPublish">📤 Отправить ученику (демо)</button>
+        <span id="publishNote" style="font-size:0.8rem; color:var(--muted);"></span>
+      </div>
+    </section>
+
+    <!-- ================= STUDENT ================= -->
+    <section class="panel">
+      <h2>🧑‍🎓 Ученик — страница задания</h2>
+
+      <span class="label">Задание</span>
+      <div class="assignment" id="studentAssignment"></div>
+
+      <span class="label">Диалог с SocratesAI <span style="font-weight:400;">(ответы тьютора здесь заготовленные, без LLM)</span></span>
+      <div class="chat" id="chat"></div>
+
+      <div class="send-row">
+        <div class="mte-wrap" id="studentInputWrap"></div>
+        <button class="btn btn-indigo" id="btnSend">Send</button>
+      </div>
+
+      <span class="label">Финальный ответ (только формула)</span>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <math-field class="standalone" id="studentFinal" math-virtual-keyboard-policy="sandboxed"></math-field>
+        <button class="btn btn-primary" id="btnCheck">Проверить</button>
+      </div>
+      <div class="result" id="checkResult"></div>
+    </section>
+  </div>
+
+  <details>
+    <summary>Для разработчика: что сохраняется и уходит в LLM</summary>
+    <pre id="debugOut"></pre>
+  </details>
+
+  <script>
+  (function () {
+    'use strict';
+
+    const DOLLAR_RE = /\$(?!\s)([^$\n]+?)(?<!\s)\$/g;   // "$5 and $10" не превращается в формулу
+    const ZW = '\u200B';
+
+    function esc(s) {
+      return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+    function cleanLatex(latex) {
+      return (latex || '').replace(/\\placeholder(\[[^\]]*\])?\{[^{}]*\}/g, '').trim();
+    }
+    function hasUserContent(latex) {
+      const stripped = cleanLatex(latex)
+        .replace(/\\(?:log|ln|sin|cos|tan|sqrt|frac|left|right)\b/g, '')
+        .replace(/[_^(){}]/g, '')
+        .trim();
+      return stripped.length > 0;
+    }
+    const HEAD_RE = /^(\\(?:log|sin|cos|tan|ln))([_^])(?:\{(\\placeholder\{\}|[^{}\\]*)\}|([^\\{}\s]))(\\left\((.*)\\right\))$/;
+    function katexHTML(latex) {
+      try { return katex.renderToString(latex, { throwOnError: false, displayMode: false }); }
+      catch (e) { return esc(latex); }
+    }
+    function renderMixed(text) {
+      let out = '', last = 0, m;
+      DOLLAR_RE.lastIndex = 0;
+      while ((m = DOLLAR_RE.exec(text))) {
+        out += esc(text.slice(last, m.index)).replace(/\n/g, '<br>');
+        out += katexHTML(m[1]);
+        last = DOLLAR_RE.lastIndex;
+      }
+      out += esc(text.slice(last)).replace(/\n/g, '<br>');
+      return out;
+    }
+
+    // ================= Autoformat rules (срабатывают прямо при наборе текста) =================
+    const TOKEN = '(\\d+(?:\\.\\d+)?|(?<![A-Za-z])[A-Za-z]|\\([^()]{1,40}\\))';
+    const stripParens = s => (/^\(.*\)$/.test(s) ? s.slice(1, -1) : s);
+    const AUTO_RULES = [
+      { re: /(?<![A-Za-z])log_?(\d+)\($/,               make: m => `\\log_{${m[1]}}\\left(#?\\right)` },
+      { re: /(?<![A-Za-z])log_?([2-9]|1\d)$/,           make: m => `\\log_{${m[1]}}\\left(#?\\right)` },
+      { re: /(?<![A-Za-z])log_?$/,                      make: () => '\\log_{#?}\\left(#?\\right)' },
+      { re: /(?<![A-Za-z])ln_?\(?$/,                    make: () => '\\ln\\left(#?\\right)' },
+      { re: /(?<![A-Za-z])(sin|cos|tan)\(?$/,           make: m => `\\${m[1]}\\left(#?\\right)` },
+      { re: /(?:(?<![A-Za-z])sqrt|√)\(?$/,              make: () => '\\sqrt{#?}' },
+      { re: new RegExp(TOKEN + '\\/$'),                 make: m => `\\frac{${stripParens(m[1])}}{#?}` },
+      { re: new RegExp(TOKEN + '\\^$'),                 make: m => `${m[1]}^{#?}` },
+      { re: /(?<![A-Za-z])([A-Za-z])_$/,                make: m => `${m[1]}_{#?}` }
+    ];
+    const TEXT_REPLACE = [
+      [/<=$/, () => '≤'],
+      [/>=$/, () => '≥'],
+      [/!=$/, () => '≠'],
+      [/~=$/, () => '≈'],
+      [/\*$/, () => '·'],
+      [/->$/, () => '→'],
+      [/\+-$/, () => '±'],
+      [/(?<![A-Za-z])pi([^A-Za-z0-9_])$/, m => 'π' + m[1]],
+      [/(?<![A-Za-z])theta([^A-Za-z0-9_])$/, m => 'θ' + m[1]]
+    ];
+
+    const TOOLBAR = [
+      { label: '∑ Формула', main: true },
+      { label: 'x²', latex: '#?^{2}', typed: '^2' },
+      { label: 'xⁿ', latex: '#?^{#?}', typed: '^' },
+      { label: 'a/b', latex: '\\frac{#?}{#?}' },
+      { label: '√x', latex: '\\sqrt{#?}' },
+      { label: 'logₐ(x)', latex: '\\log_{#?}\\left(#?\\right)' },
+      { label: 'ln(x)', latex: '\\ln\\left(#?\\right)' },
+      { label: 'π', latex: '\\pi' },
+      { label: '≤', latex: '\\le' },
+      { label: '≥', latex: '\\ge' },
+      { label: '≠', latex: '\\ne' },
+      { label: '⌨', keyboard: true }
+    ];
+
+    const inMath = e => !!(e.target && e.target.closest && e.target.closest('.math-inline'));
+    const isField = n => !!(n && n.nodeType === 1 && n.classList.contains('math-inline'));
+    const editors = [];
+
+    class MathTextEditor {
+      constructor(wrap, { placeholder = '', small = false, onEnter = null } = {}) {
+        this.onEnter = onEnter;
+        this.lastRange = null;
+        this.activeField = null;
+
+        const tb = document.createElement('div');
+        tb.className = 'mte-toolbar';
+        TOOLBAR.forEach(t => {
+          const b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'mte-btn' + (t.main ? ' main' : '');
+          b.textContent = t.label;
+          b.title = t.keyboard ? 'Экранная математическая клавиатура' : '';
+          b.addEventListener('mousedown', e => e.preventDefault());   // не терять курсор
+          b.addEventListener('click', () => this.onToolbar(t));
+          tb.appendChild(b);
+        });
+
+        this.root = document.createElement('div');
+        this.root.className = 'mte' + (small ? ' small' : '');
+        this.root.contentEditable = 'true';
+        this.root.spellcheck = false;
+        this.root.dataset.placeholder = placeholder;
+        wrap.appendChild(tb);
+        wrap.appendChild(this.root);
+
+        this.root.addEventListener('input', e => {
+          if (!inMath(e)) {
+            if (!this.autoformat()) { while (this.convertDollarPairs()) {} }
+          }
+          this.changed();
+        });
+        this.root.addEventListener('keydown', e => { if (!inMath(e)) this.onKeyDown(e); });
+        this.root.addEventListener('paste', e => { if (!inMath(e)) this.onPaste(e); });
+        const remember = () => {
+          const sel = window.getSelection();
+          if (sel.rangeCount && this.root.contains(sel.getRangeAt(0).startContainer)) this.lastRange = sel.getRangeAt(0).cloneRange();
+        };
+        ['keyup', 'mouseup'].forEach(ev => this.root.addEventListener(ev, e => { if (!inMath(e)) remember(); }));
+
+        editors.push(this);
+        this.changed();
+      }
+
+      // ---------------- live math fields ----------------
+      configureFieldInstance(mf) {
+        if (!mf) return;
+        try {
+          mf.mathVirtualKeyboardPolicy = 'sandboxed';
+          if (!mf._shortcutsConfigured && mf._mathfield) {
+            mf._shortcutsConfigured = true;
+            mf.inlineShortcuts = Object.assign({}, mf.inlineShortcuts, {
+              log: '\\log_{#?}\\left(#?\\right)',
+              ln: '\\ln\\left(#?\\right)',
+              sin: '\\sin\\left(#?\\right)',
+              cos: '\\cos\\left(#?\\right)',
+              tan: '\\tan\\left(#?\\right)',
+              sqrt: '\\sqrt{#?}'
+            });
+          }
+        } catch (e) {}
+      }
+
+      makeField(latex, mode) {
+        const w = document.createElement('span');
+        w.className = 'math-inline';
+        w.contentEditable = 'false';
+        w.dataset.mode = mode;                 // 'auto' — пробел выходит из формулы; 'explicit' — нет
+        if (latex) w.dataset.init = latex;
+        const mf = document.createElement('math-field');
+        mf.setAttribute('math-virtual-keyboard-policy', 'sandboxed');
+        w.appendChild(mf);
+        this.wireField(w, mf);
+        return w;
+      }
+
+      hydrate() {
+        this.root.querySelectorAll('.math-inline[data-init]').forEach(w => {
+          const mf = w.querySelector('math-field');
+          try {
+            this.configureFieldInstance(mf);
+            mf.value = w.dataset.init;
+            delete w.dataset.init;
+          } catch (e) {}
+        });
+      }
+
+      wireField(w, mf) {
+        this.configureFieldInstance(mf);
+        mf.addEventListener('mount', () => { this.configureFieldInstance(mf); });
+        mf.addEventListener('focus', () => {
+          this.activeField = w;
+          this.configureFieldInstance(mf);
+        });
+        mf.addEventListener('blur', () => {
+          setTimeout(() => {
+            const vkOpenForThis =
+              window.mathVirtualKeyboard &&
+              window.mathVirtualKeyboard.visible &&
+              this.activeField === w;
+            if (w.isConnected && document.activeElement !== mf && !vkOpenForThis && !hasUserContent(mf.value) && !w.dataset.init) {
+              this.removeField(w, false);
+            }
+            this.changed();
+          }, 0);
+        });
+        mf.addEventListener('input', () => { this.autoAdvance(mf, w); this.changed(); });
+        mf.addEventListener('move-out', e => {
+          const d = e.detail && e.detail.direction;
+          if (d === 'forward') this.exitField(w, 'after');
+          else if (d === 'backward') this.exitField(w, 'before');
+        });
+        mf.addEventListener('keydown', e => this.onFieldKey(e, w, mf), { capture: true });
+      }
+
+      onFieldKey(e, w, mf) {
+        const stop = () => { e.preventDefault(); e.stopPropagation(); };
+        if (e.key === 'Enter' || e.key === 'Escape' || (e.ctrlKey && e.code === 'KeyM')) {
+          stop(); this.exitField(w, 'after'); return;
+        }
+        if (e.key === 'Backspace') {
+          if (!hasUserContent(mf.value)) { stop(); this.removeField(w, true); return; }
+          if (this.backspaceInLogBase(mf)) { stop(); return; }
+        }
+
+        if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.shiftKey) {
+          if (this.navigateHeadAndArg(mf, e.key)) { stop(); return; }
+        }
+
+        if (e.key === '_' && (mf.value.includes('\\log_') || mf.value.includes('_{'))) {
+          stop();
+          return;
+        }
+
+        const trigNoExp = /^\\(sin|cos|tan|ln)\\left\((.*)\\right\)$/.exec(mf.value || '');
+        if (e.key === '^' && trigNoExp && (trigNoExp[2] === '\\placeholder{}' || mf.position <= 2)) {
+          stop();
+          mf.value = `\\${trigNoExp[1]}^{\\placeholder{}}\\left(${trigNoExp[2]}\\right)`;
+          mf._prevValue = mf.value;
+          mf.position = 0;
+          mf.executeCommand('moveToNextPlaceholder');
+          this.changed();
+          return;
+        }
+
+        if (e.key === '/' && /^\\frac\{[^{}]+\}\{\\placeholder\{\}\}$/.test(mf.value || '')) {
+          stop();
+          mf.executeCommand('moveToNextPlaceholder');
+          return;
+        }
+
+        if (e.key === '(') {
+          if (/\\left\(\\placeholder\{\}\\right\)$/.test(mf.value || '')) {
+            stop();
+            mf._sawParen = true;
+            if (mf.position < mf.lastOffset - 2) {
+              mf.executeCommand('moveToNextPlaceholder');
+            }
+            return;
+          }
+          const hm = HEAD_RE.exec(mf.value || '');
+          if (hm) {
+            const rawBase = hm[3] !== undefined ? hm[3] : hm[4];
+            const baseLen = rawBase === '\\placeholder{}' ? 1 : rawBase.length;
+            if (mf.position <= baseLen + 2) {
+              stop();
+              mf._sawParen = true;
+              mf.position = baseLen + 3;
+              return;
+            }
+          }
+        }
+
+        if (e.key === ')' && (mf.value || '').endsWith('\\right)') && mf.position >= mf.lastOffset - 1) {
+          stop();
+          if (mf.position < mf.lastOffset) {
+            mf.executeCommand('moveToNextChar');
+          }
+          return;
+        }
+
+        if (e.key === ' ' && w.dataset.mode === 'auto') {
+          stop();
+          this.climbOut(mf);
+          if (mf.value.includes('\\placeholder') && mf.position < mf.lastOffset) {
+            mf.executeCommand('moveToNextPlaceholder');
+            return;
+          }
+          if (mf.position >= mf.lastOffset) this.exitField(w, 'after', ' ');
+          return;
+        }
+        if (e.key === '=' && this.climbOut(mf)) {   // "5/6=" — знак "=" не попадает в знаменатель
+          stop(); mf.insert('='); this.changed(); return;
+        }
+      }
+
+      // Как только набрано основание log_b( ) или степень sin^n( ), курсор сам прыгает в аргумент.
+      // Основание "1" невозможно для log, поэтому ждём вторую цифру (log_10, log_12).
+      autoAdvance(mf, w) {
+        const v = mf.value || '';
+        const prev = mf._prevValue || '';
+        mf._prevValue = v;
+
+        if (w && w.dataset.mode === 'auto' && !mf._sawParen) {
+          const eng =
+            /^\\(sin)\\left\((g|ce)\\right\)$/.exec(v) ||
+            /^\\(cos)\\left\((i|ts|ti)\\right\)$/.exec(v) ||
+            /^\\(tan)\\left\((g|k)\\right\)$/.exec(v) ||
+            /^\\(log)_a\\left\((ri)\\right\)$/.exec(v);
+          if (eng) {
+            const word = eng[1] === 'log' ? 'logari' : eng[1] + eng[2];
+            this.unwrapToText(w, word);
+            return;
+          }
+        }
+
+        const cur = /^\\(?:log_|(?:sin|cos|tan|ln)\^)(?:\{([^{}\\]+)\}|([^\\{}\s]))\\left\(\\placeholder\{\}\\right\)$/.exec(v);
+        if (!cur) return;
+        const base = cur[1] !== undefined ? cur[1] : cur[2];
+        if (base === '1' && v.startsWith('\\log_')) return;
+        const wasWaiting = !prev ||
+          /^\\(?:log_|(?:sin|cos|tan|ln)\^)(?:\{\\placeholder\{\}\}|\\placeholder\{\}|1|\{1\})\\left\(\\placeholder\{\}\\right\)$/.test(prev);
+        if (!wasWaiting) return;
+        setTimeout(() => { try { mf.executeCommand('moveToNextPlaceholder'); } catch (e) {} }, 0);
+      }
+
+      // ← идёт сразу в основание/степень, → сразу в аргумент
+      navigateHeadAndArg(mf, key) {
+        try {
+          const hm = HEAD_RE.exec(mf.value || '');
+          if (!hm) return false;
+          const rawBase = hm[3] !== undefined ? hm[3] : hm[4];
+          const arg = hm[6];
+          const baseIsPh = rawBase === '\\placeholder{}';
+          const argIsPh = arg === '\\placeholder{}';
+          const baseLen = baseIsPh ? 1 : rawBase.length;
+          const pos = mf.position;
+
+          if (key === 'ArrowLeft') {
+            if ((argIsPh && pos >= baseLen + 2) || pos === baseLen + 3 || pos === baseLen + 2) {
+              if (baseIsPh) {
+                mf.position = 0;
+                mf.executeCommand('moveToNextPlaceholder');
+              } else {
+                mf.position = baseLen + 1;
+              }
+              return true;
+            }
+          } else if (key === 'ArrowRight') {
+            if ((baseIsPh && pos >= 1 && pos <= 3) || pos === baseLen + 1 || pos === baseLen + 2) {
+              if (argIsPh) {
+                mf.position = baseLen + 2;
+                mf.executeCommand('moveToNextPlaceholder');
+              } else {
+                mf.position = baseLen + 3;
+              }
+              return true;
+            }
+          }
+          return false;
+        } catch (e) { return false; }
+      }
+
+      // Backspace в основании log / степени sin правит только основание/степень (а не удаляет всю функцию)
+      backspaceInLogBase(mf) {
+        try {
+          const m = HEAD_RE.exec(mf.value || '');
+          if (!m) return false;
+          const rawBase = m[3] !== undefined ? m[3] : m[4];
+          if (rawBase === '\\placeholder{}') {
+            return mf.position >= 1 && mf.position <= 3;
+          }
+          const pos = mf.position;
+          if (pos < 2 || pos > rawBase.length + 1) return false;
+          const nb = rawBase.slice(0, pos - 2) + rawBase.slice(pos - 1);
+          mf.value = nb ? `${m[1]}${m[2]}{${nb}}${m[5]}` : `${m[1]}${m[2]}{\\placeholder{}}${m[5]}`;
+          mf._prevValue = mf.value;
+          if (nb) { mf.position = pos - 1; }
+          else { mf.position = 0; mf.executeCommand('moveToNextPlaceholder'); }
+          this.changed();
+          return true;
+        } catch (e) { return false; }
+      }
+
+      unwrapToText(w, word) {
+        this.pad(w);
+        const prev = w.previousSibling;
+        w.remove();
+        this.root.focus();
+        if (prev && prev.nodeType === 3) {
+          prev.data = prev.data.replace(/\u200B+$/, '') + word;
+          const r = document.createRange();
+          r.setStart(prev, prev.data.length);
+          r.collapse(true);
+          const sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(r);
+          this.lastRange = r.cloneRange();
+        }
+        this.changed();
+      }
+
+      climbOut(mf) {
+        let moved = false;
+        for (let i = 0; i < 6; i++) {
+          const before = mf.position;
+          mf.executeCommand('moveAfterParent');
+          if (mf.position === before) break;
+          moved = true;
+        }
+        return moved;
+      }
+
+      openField(w, latex) {
+        const mf = w.querySelector('math-field');
+        mf.focus();
+        if (latex) {
+          try { mf.insert(latex, { selectionMode: 'placeholder', focus: true }); }
+          catch (e) { mf.value = latex.replace(/#\?/g, ''); }
+        }
+        this.activeField = w;
+      }
+
+      focusField(w, where) {
+        const mf = w.querySelector('math-field');
+        mf.focus();
+        try { mf.position = where === 'start' ? 0 : mf.lastOffset; } catch (e) {}
+      }
+
+      pad(w) {
+        if (!w.nextSibling || w.nextSibling.nodeType !== 3) w.after(document.createTextNode(ZW));
+        if (!w.previousSibling || w.previousSibling.nodeType !== 3) w.before(document.createTextNode(ZW));
+      }
+
+      exitField(w, dir, insertText = '') {
+        const mf = w.querySelector('math-field');
+        if (!cleanLatex(mf.value)) { this.removeField(w, true); return; }
+        this.pad(w);
+        try { window.mathVirtualKeyboard && window.mathVirtualKeyboard.hide(); } catch (e) {}
+        this.root.focus();
+        const r = document.createRange();
+        if (dir === 'before') {
+          const t = w.previousSibling;
+          r.setStart(t, t.data.length);
+        } else {
+          const t = w.nextSibling;
+          let off = 0;
+          while (off < t.data.length && t.data[off] === ZW) off++;
+          if (insertText) { t.insertData(off, insertText); off += insertText.length; }
+          r.setStart(t, off);
+        }
+        r.collapse(true);
+        const sel = window.getSelection();
+        sel.removeAllRanges(); sel.addRange(r);
+        this.lastRange = r.cloneRange();
+        this.changed();
+      }
+
+      removeField(w, focusText) {
+        const prev = w.previousSibling;
+        w.remove();
+        if (focusText) {
+          this.root.focus();
+          if (prev && prev.nodeType === 3) {
+            const r = document.createRange();
+            r.setStart(prev, prev.data.length); r.collapse(true);
+            const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+          }
+        }
+        this.changed();
+      }
+
+      insertField(template, mode) {
+        const range = this.getRange();
+        range.deleteContents();
+        const w = this.makeField('', mode);
+        range.insertNode(w);
+        this.pad(w);
+        this.openField(w, template ? template.latex : '');
+      }
+
+      onToolbar(t) {
+        const mfActive = this.activeField && this.activeField.isConnected &&
+          document.activeElement === this.activeField.querySelector('math-field');
+        if (t.keyboard) {
+          const vk = window.mathVirtualKeyboard;
+          if (vk && vk.visible) {
+            vk.hide();
+            return;
+          }
+          if (!mfActive) {
+            if (this.activeField && this.activeField.isConnected) {
+              const existingMf = this.activeField.querySelector('math-field');
+              if (existingMf) existingMf.focus();
+            } else {
+              this.insertField(null, 'explicit');
+            }
+          }
+          setTimeout(() => {
+            try {
+              const activeMf = this.activeField && this.activeField.querySelector('math-field');
+              if (activeMf) {
+                this.configureFieldInstance(activeMf);
+                activeMf.focus();
+              }
+              window.mathVirtualKeyboard.show();
+            } catch (e) {}
+          }, 50);
+          return;
+        }
+        if (mfActive) {
+          if (!t.latex) return;
+          const mf = this.activeField.querySelector('math-field');
+          if (t.typed && mf.executeCommand(['typedText', t.typed])) { mf.focus(); return; }
+          mf.insert(t.latex, { selectionMode: 'placeholder', focus: true });
+          return;
+        }
+        this.insertField(t.latex ? t : null, 'explicit');
+      }
+
+      // ---------------- text side ----------------
+      getRange() {
+        const sel = window.getSelection();
+        if (sel.rangeCount) {
+          const live = sel.getRangeAt(0);
+          if (this.root.contains(live.startContainer)) return live.cloneRange();
+        }
+        if (this.lastRange && this.root.contains(this.lastRange.startContainer)) return this.lastRange;
+        const r = document.createRange();
+        r.selectNodeContents(this.root);
+        r.collapse(false);
+        return r;
+      }
+
+      autoformat() {
+        const sel = window.getSelection();
+        if (!sel.rangeCount || !sel.isCollapsed) return false;
+        const r = sel.getRangeAt(0);
+        const n = r.startContainer;
+        if (n.nodeType !== 3 || !this.root.contains(n)) return false;
+        const o = r.startOffset;
+        const before = n.data.slice(0, o);
+
+        for (const [pat, fn] of TEXT_REPLACE) {
+          const m = pat.exec(before);
+          if (m) {
+            const ch = fn(m);
+            n.data = before.slice(0, m.index) + ch + n.data.slice(o);
+            const rr = document.createRange(); rr.setStart(n, m.index + ch.length); rr.collapse(true);
+            sel.removeAllRanges(); sel.addRange(rr);
+            return true;
+          }
+        }
+
+        for (const rule of AUTO_RULES) {
+          const m = rule.re.exec(before);
+          if (!m) continue;
+          n.splitText(o);                       // текст после курсора остаётся отдельным узлом
+          n.data = before.slice(0, m.index);    // убираем набранный триггер ("5/", "x^", "log_" ...)
+          const w = this.makeField('', 'auto');
+          n.after(w);
+          this.pad(w);
+          this.openField(w, rule.make(m));
+          return true;
+        }
+        return false;
+      }
+
+      onKeyDown(e) {
+        if (e.ctrlKey && e.code === 'KeyM') { e.preventDefault(); this.insertField(null, 'explicit'); return; }
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (this.onEnter && !e.shiftKey) { this.onEnter(); return; }
+          document.execCommand('insertLineBreak');
+          return;
+        }
+        const sel = window.getSelection();
+        if (!sel.rangeCount || !sel.isCollapsed) return;
+        const { startContainer: n, startOffset: o } = sel.getRangeAt(0);
+        if (n.nodeType !== 3) return;
+        const afterTxt = n.data.slice(o).replace(/\u200B/g, '');
+        const beforeTxt = n.data.slice(0, o).replace(/\u200B/g, '');
+        if ((e.key === 'ArrowRight' || e.key === 'Delete') && !afterTxt && isField(n.nextSibling)) {
+          e.preventDefault(); this.focusField(n.nextSibling, 'start');
+        } else if ((e.key === 'ArrowLeft' || e.key === 'Backspace') && !beforeTxt && isField(n.previousSibling)) {
+          e.preventDefault(); this.focusField(n.previousSibling, 'end');
+        }
+      }
+
+      onPaste(e) {
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+        const range = this.getRange();
+        range.deleteContents();
+        const frag = this.buildFragment(text);
+        const lastNode = frag.lastChild;
+        range.insertNode(frag);
+        this.hydrate();
+        if (lastNode) {
+          const r = document.createRange();
+          r.setStartAfter(lastNode); r.collapse(true);
+          const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+        }
+        this.changed();
+      }
+
+      convertDollarPairs() {
+        const walker = document.createTreeWalker(this.root, NodeFilter.SHOW_TEXT, {
+          acceptNode: n => (n.parentElement && n.parentElement.closest('.math-inline'))
+            ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT
+        });
+        const re = new RegExp(DOLLAR_RE.source);
+        let node;
+        while ((node = walker.nextNode())) {
+          const m = re.exec(node.data);
+          if (m) {
+            const mid = node.splitText(m.index);
+            mid.splitText(m[0].length);
+            const w = this.makeField(m[1].trim(), 'explicit');
+            mid.replaceWith(w);
+            this.pad(w);
+            this.hydrate();
+            this.exitField(w, 'after');
+            return true;
+          }
+        }
+        return false;
+      }
+
+      // ---------------- storage format: text with $LaTeX$ ----------------
+      buildFragment(text) {
+        const frag = document.createDocumentFragment();
+        let last = 0, m;
+        DOLLAR_RE.lastIndex = 0;
+        while ((m = DOLLAR_RE.exec(text))) {
+          if (m.index > last) frag.appendChild(document.createTextNode(text.slice(last, m.index)));
+          frag.appendChild(document.createTextNode(ZW));
+          frag.appendChild(this.makeField(m[1].trim(), 'explicit'));
+          frag.appendChild(document.createTextNode(ZW));
+          last = DOLLAR_RE.lastIndex;
+        }
+        if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+        return frag;
+      }
+      setValue(text) {
+        this.root.innerHTML = '';
+        this.root.appendChild(this.buildFragment(text || ''));
+        this.hydrate();
+        this.changed();
+      }
+      getValue() {
+        let out = '';
+        const walk = (node) => {
+          node.childNodes.forEach(ch => {
+            if (ch.nodeType === 3) out += ch.data.replace(/\u200B/g, '').replace(/\u00A0/g, ' ');
+            else if (isField(ch)) {
+              const latex = ch.dataset.init || cleanLatex(ch.querySelector('math-field').value);
+              if (latex) out += (out.endsWith('$') ? ' ' : '') + '$' + latex + '$';
+            }
+            else if (ch.tagName === 'BR') out += '\n';
+            else if (ch.tagName === 'DIV' || ch.tagName === 'P') { if (out && !out.endsWith('\n')) out += '\n'; walk(ch); }
+            else walk(ch);
+          });
+        };
+        walk(this.root);
+        return out.replace(/\s+$/, '');
+      }
+      clear() { this.root.innerHTML = ''; this.changed(); }
+
+      changed() {
+        const v = this.getValue();
+        this.root.dataset.empty = (!v && !this.root.querySelector('.math-inline')) ? 'true' : 'false';
+        updateDebug();
+      }
+    }
+
+    // ================= Demo wiring =================
+    let teacherPrompt, levelB, studentInput;
+
+    function updateDebug() {
+      const out = document.getElementById('debugOut');
+      if (!out || !teacherPrompt || !levelB) return;
+      const ta = document.getElementById('targetAnswer');
+      out.textContent = JSON.stringify({
+        prompt: teacherPrompt.getValue(),
+        levelB: { problem: levelB.getValue(), targetAnswer: ta && ta.value ? ta.value : '' },
+        studentDraft: studentInput ? studentInput.getValue() : ''
+      }, null, 2);
+    }
+
+    function addBubble(who, text) {
+      const chat = document.getElementById('chat');
+      const div = document.createElement('div');
+      div.className = 'bubble ' + who;
+      div.innerHTML = `<div class="who">${who === 'tutor' ? 'SocratesAI' : 'Вы'}</div>${renderMixed(text)}`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function publish() {
+      document.getElementById('studentAssignment').innerHTML = renderMixed(teacherPrompt.getValue());
+      document.getElementById('publishNote').textContent = '✓ Отправлено ' + new Date().toLocaleTimeString();
+    }
+
+    function sendStudent() {
+      const text = studentInput.getValue();
+      if (!text.trim()) return;
+      addBubble('student', text);
+      studentInput.clear();
+      setTimeout(() => {
+        const t = text.replace(/\s+/g, '');
+        if (/36/.test(t)) {
+          addBubble('tutor', 'Exactly! The Power Law gives $2\\log_3(6) = \\log_3(36)$. Now apply the Quotient Law: $\\log_3(36) - \\log_3(4) = \\log_3\\left(\\frac{36}{4}\\right)$. What is $\\log_3(9)$?');
+        } else if (/\(9|\{9\}/.test(t)) {
+          addBubble('tutor', 'Great — you reached $\\log_3(9)$. Which power of $3$ gives $9$? Enter your final answer below.');
+        } else {
+          addBubble('tutor', 'Good start! Hint: the Power Law says $k\\log_b(M) = \\log_b\\left(M^k\\right)$. What does $2\\log_3(6)$ become?');
+        }
+      }, 400);
+    }
+
+    const normalizeAnswer = s => (s || '').replace(/\\left|\\right|\s|\{|\}/g, '');
+
+    document.addEventListener('DOMContentLoaded', () => {
+      customElements.whenDefined('math-field').then(() => {
+        try { window.MathfieldElement.soundsDirectory = null; } catch (e) {}
+
+        teacherPrompt = new MathTextEditor(document.getElementById('teacherPromptWrap'), {
+          placeholder: 'Напишите задачу. Формулы оформляются прямо при наборе: 5/6, x^2, log_3…'
+        });
+        teacherPrompt.setValue('Simplify into a single numerical value: $2\\log_3(6) - \\log_3(4)$. Take a look at the first term. What rule allows us to absorb that multiplier 2 into an exponent?');
+
+        levelB = new MathTextEditor(document.getElementById('levelBWrap'), {
+          placeholder: 'Задача уровня B…', small: true
+        });
+        levelB.setValue('Simplify into a single numerical value: $2\\log_3(6) - \\log_3(4)$');
+
+        studentInput = new MathTextEditor(document.getElementById('studentInputWrap'), {
+          placeholder: 'Ваш ответ… (Enter — отправить, Shift+Enter — новая строка)',
+          small: true,
+          onEnter: sendStudent
+        });
+
+        document.getElementById('targetAnswer').addEventListener('input', updateDebug);
+        document.getElementById('btnPublish').addEventListener('click', publish);
+        document.getElementById('btnSend').addEventListener('click', sendStudent);
+        document.getElementById('btnCheck').addEventListener('click', () => {
+          const target = normalizeAnswer(document.getElementById('targetAnswer').value);
+          const given = normalizeAnswer(document.getElementById('studentFinal').value);
+          const res = document.getElementById('checkResult');
+          if (!given) { res.textContent = 'Введите ответ.'; res.style.color = 'var(--muted)'; return; }
+          const ok = given === target;
+          res.textContent = ok ? '✅ Верно!' : '❌ Пока нет — попробуйте ещё раз.';
+          res.style.color = ok ? 'var(--green)' : 'var(--pink)';
+        });
+
+        document.querySelectorAll('math-field.standalone').forEach(mf => {
+          try {
+            mf.mathVirtualKeyboardPolicy = 'sandboxed';
+            mf.inlineShortcuts = Object.assign({}, mf.inlineShortcuts, {
+              log: '\\log_{#?}\\left(#?\\right)',
+              ln: '\\ln\\left(#?\\right)',
+              sin: '\\sin\\left(#?\\right)',
+              cos: '\\cos\\left(#?\\right)',
+              tan: '\\tan\\left(#?\\right)',
+              sqrt: '\\sqrt{#?}'
+            });
+          } catch (e) {}
+        });
+
+        const vk = window.mathVirtualKeyboard;
+        if (vk) {
+          const ensureAboveKeyboard = () => {
+            if (!vk.visible) return;
+            const h = (vk.boundingRect && vk.boundingRect.height) || 310;
+            const el = document.activeElement;
+            if (el && el !== document.body) {
+              const rect = el.getBoundingClientRect();
+              const limit = window.innerHeight - h - 24;
+              if (rect.bottom > limit) {
+                window.scrollBy(0, rect.bottom - limit);
+              }
+            }
+          };
+          const syncLayout = () => {
+            const visible = !!vk.visible;
+            const h = (visible && vk.boundingRect && vk.boundingRect.height) || (visible ? 310 : 0);
+            document.body.style.paddingBottom = visible ? `${h + 60}px` : '';
+            if (visible) {
+              ensureAboveKeyboard();
+              setTimeout(ensureAboveKeyboard, 320);
+            }
+          };
+          vk.addEventListener('geometrychange', syncLayout);
+          vk.addEventListener('virtual-keyboard-toggle', syncLayout);
+        }
+
+        publish();
+        addBubble('tutor', 'Hi! Let\'s simplify $2\\log_3(6) - \\log_3(4)$ together. What rule lets us move the coefficient $2$ into an exponent?');
+        updateDebug();
+      });
+    });
+  })();
+  </script>
+</body>
+</html>

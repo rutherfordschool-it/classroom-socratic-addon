@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SocratesAI — Teacher Material Studio &amp; Lesson Plan (Google Classroom Add-on)</title>
+  <script>
+    (function () {
+      try {
+        if (window.self !== window.top && !location.search.includes('stayInIframe=1') && !location.search.includes('fullWindow=1')) {
+          document.documentElement.classList.add('socrates-iframe-bridge-mode');
+          var style = document.createElement('style');
+          style.id = 'socratesIframeMaskStyle';
+          style.textContent = 'html.socrates-iframe-bridge-mode .app-header, html.socrates-iframe-bridge-mode main.container { display: none !important; } html.socrates-iframe-bridge-mode body { background: #f8f9fa !important; margin: 0 !important; overflow: hidden !important; }';
+          document.head.appendChild(style);
+          var u = new URL(window.location.href);
+          u.searchParams.set('fullWindow', '1');
+          var w = window.open(u.toString(), '_blank');
+          if (w) {
+            window.__socratesAutoOpenedWindow = w;
+            try { w.focus(); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/css/theme.css?v=20261112c" />
+  <link rel="stylesheet" href="/css/components.css?v=20261112c" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/mathlive/dist/mathlive-static.css" />
+  <script defer src="https://unpkg.com/mathlive"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link rel="stylesheet" href="/css/math-editor.css?v=20261113b" />
+</head>
+<body style="background:#f8f9fa; color:#202124;">
+  <!-- Google Classroom Light App Header (Matches Student View Single-Row Header) -->
+  <header class="app-header" style="background:#ffffff; border-bottom:1px solid #dadce0;">
+    <div class="brand-logo" style="flex-shrink:0;">
+      <div class="brand-icon">🏛️</div>
+      <div>
+        <div class="brand-title" style="color:#202124;">SocratesAI <span class="brand-subtitle" style="color:#5f6368;">for Google Classroom</span></div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:nowrap; overflow-x:auto;">
+      <!-- Point 7b: Automatic Teacher Prep Time Telemetry Pill -->
+      <div id="teacherPrepTimerBadge" style="display:inline-flex; align-items:center; gap:0.45rem; padding:0.28rem 0.65rem; border-radius:999px; background:#f1f3f4; border:1px solid #dadce0; font-size:0.74rem; color:#3c4043; font-weight:500; white-space:nowrap;" title="Automatically tracks time spent preparing Materials (Block 1) and Lesson Plan (Block 2)">
+        <span>⏱️ Prep:</span>
+        <span>Materials <strong id="timerMaterialsVal" style="color:#1967d2;">00:00</strong></span>
+        <span style="color:#dadce0;">|</span>
+        <span>Lesson Plan <strong id="timerLessonVal" style="color:#137333;">00:00</strong></span>
+      </div>
+      <span class="badge badge-blue" style="white-space:nowrap;">Teacher Studio</span>
+      <span id="classroomContextBadge" class="badge badge-green" style="white-space:nowrap;">Course Connected</span>
+      <button type="button" id="tabBtnStudio" class="btn btn-secondary active" role="tab" aria-selected="true" style="padding:0.32rem 0.7rem; font-size:0.75rem; white-space:nowrap; border-color:#1a73e8; color:#1967d2; background:#e8f0fe;">
+        🛠️ Studio Workspace
+      </button>
+      <button type="button" id="tabBtnTemplates" class="btn btn-secondary" role="tab" aria-selected="false" style="padding:0.32rem 0.7rem; font-size:0.75rem; white-space:nowrap;">
+        📚 Templates &amp; MHF4U Units
+      </button>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:16px; padding-bottom:3rem; width:100%; max-width:100%;">
+    <!-- =====================================================================
+         TAB 2 (HIDDEN BY DEFAULT — POINT 3): Choose an Activity Template
+         ===================================================================== -->
+    <section id="tabPanelTemplates" style="display:none; margin-bottom:1.5rem;">
+      <div class="glass-panel" style="padding:1.25rem; margin-bottom:1.25rem; background:#ffffff; border:1px solid #dadce0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
+          <div>
+            <h2 style="font-size:1.1rem; color:#202124;">📚 Choose an Activity Template or Start from Scratch</h2>
+            <p class="text-muted" style="font-size:0.84rem; color:#5f6368;">Select a pre-built curriculum template or Ontario MHF4U unit to populate your Material Studio, Lesson Plan, and 30-problem Adaptive Exercise Pool (10 per tier).</p>
+          </div>
+          <button type="button" id="returnToStudioBtn" class="btn btn-secondary" style="font-size:0.8rem; padding:0.4rem 0.85rem;">
+            ← Back to Studio Workspace
+          </button>
+        </div>
+
+        <div class="template-grid" id="templateGrid" style="margin-bottom:1.25rem;">
+          <!-- Populated dynamically by discovery.js -->
+        </div>
+
+        <!-- Ontario MHF4U Curriculum Selector inside Templates Tab -->
+        <div style="padding:1rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
+            <div>
+              <span class="badge badge-blue" style="margin-bottom:0.25rem;">ONTARIO MHF4U CURRICULUM</span>
+              <h3 style="font-size:0.95rem; color:#202124;">Pre-Built Unit &amp; Lesson Plan Selector</h3>
+            </div>
+            <button type="button" id="applyMhf4uLessonBtn" class="btn btn-primary" style="font-size:0.8rem; padding:0.4rem 0.85rem;">
+              ✓ Load Selected Unit into Studio
+            </button>
+          </div>
+          <div class="grid-2" style="gap:0.85rem; margin-bottom:0.85rem;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="unitSelect">Curriculum Unit</label>
+              <select id="unitSelect" class="form-select"></select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="lessonSelect">Lesson Plan Topic</label>
+              <select id="lessonSelect" class="form-select"></select>
+            </div>
+          </div>
+          <div style="background:#ffffff; border:1px solid #dadce0; border-radius:8px; padding:0.75rem;">
+            <div style="font-size:0.75rem; font-weight:600; color:#1967d2; text-transform:uppercase; margin-bottom:0.35rem;">
+              🎯 Specific Curriculum Expectations
+            </div>
+            <ul id="expectationsList" style="margin:0; padding-left:1.2rem; font-size:0.82rem; color:#3c4043; line-height:1.5;"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         TAB 1 (VISIBLE BY DEFAULT): 50 / 50 Two-Column Workspace (No Floating Banner)
+         - Left Column (50%): Block 1 — Teacher Material Studio & Reference Sheet
+         - Right Column (50%): Block 2 — Lesson Plan Title, Goal, Milestones & Exercise Pool (A/B/C)
+         ===================================================================== -->
+    <div id="tabPanelStudio">
+      <form id="activityForm">
+        <div class="grid-sidebar-teacher">
+          <!-- =================================================================
+               LEFT COLUMN (50%):
+               1) BLOCK 1 — Teacher Material Studio & Curriculum/Material Library
+               2) BELOW BLOCK 1 — Level A / B / C Descriptions & Prompts Editor
+               ================================================================= -->
+          <div style="display:flex; flex-direction:column; gap:1.1rem; min-width:0;">
+          <section id="block1MaterialStudio" class="glass-panel" style="padding:1.25rem; background:#ffffff; border:1px solid #dadce0; border-top:4px solid #1a73e8;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.6rem; margin-bottom:0.85rem;">
+              <div>
+                <div style="display:flex; align-items:center; gap:0.45rem; margin-bottom:0.2rem; flex-wrap:wrap;">
+                  <span class="badge badge-blue">BLOCK 1 • CURRICULUM &amp; MATERIAL PREPARATION</span>
+                  <span id="materialMethodsBadges" style="display:inline-flex; gap:0.3rem; align-items:center; flex-wrap:wrap;">
+                    <span class="badge badge-blue" style="font-size:0.7rem;">⌨️ Ready</span>
+                  </span>
+                </div>
+                <h2 style="font-size:1.08rem; color:#202124;">📚 1. Curriculum &amp; Material Studio (Drive, Local, Stream, Web &amp; Library)</h2>
+                <p style="font-size:0.8rem; color:#5f6368; margin-top:0.15rem;">
+                  Select a pre-loaded curriculum/material or load from Google Drive, Local File, Classroom Stream, or Internet Search. SocratesAI automatically recognizes the type &amp; content and lets you save it to the dropdown library.
+                </p>
+              </div>
+              <button type="button" id="clearStudioAlwaysBtn" class="btn btn-secondary" style="font-size:0.76rem; padding:0.34rem 0.75rem; color:#c5221f; border-color:#f5c2c7; background:#fff8f8; white-space:nowrap;">
+                🗑️ Clear Materials &amp; Reset
+              </button>
+            </div>
+
+            <!-- Multimodal Input Action Bar (Supports Loading Multiple Files for Both Curriculum & Materials) -->
+            <div style="padding:0.75rem; background:#f8f9fa; border:1px solid #dadce0; border-radius:8px; margin-bottom:0.85rem;">
+              <!-- Row 1: Pre-Loaded & Saved Curriculum Dropdown + Course Material Library Dropdown + Save Button -->
+              <div style="display:grid; grid-template-columns:1fr 1fr auto; gap:0.45rem; align-items:end; margin-bottom:0.6rem;">
+                <div>
+                  <label class="form-label" for="curriculumSelect" style="font-size:0.73rem; font-weight:700; color:#137333; margin-bottom:0.2rem; display:block;">
+                    📘 1a. Curriculum Standard Library (Pre-Loaded &amp; Saved)
+                  </label>
+                  <select id="curriculumSelect" class="form-select" style="width:100%; height:38px; padding:0.35rem 1.8rem 0.35rem 0.65rem; font-size:0.8rem; font-weight:600; border-color:#1e8e3e; background:#ffffff;">
+                    <option value="canada" selected>🇨🇦 Canada — Ontario OSS (MHF4U/MCV4U)</option>
+                    <option value="canada-bc-ab">🇨🇦 Canada — BC / Alberta Curriculum</option>
+                    <option value="us">🇺🇸 US — Common Core (CCSS)</option>
+                    <option value="us-ap">🇺🇸 US — College Board AP</option>
+                    <option value="us-ngss">🇺🇸 US — NGSS Science</option>
+                    <option value="ib">🌍 IB Diploma (Math AA/AI &amp; Sciences)</option>
+                    <option value="uk-alevel">🇬🇧 UK — Cambridge IGCSE &amp; A-Level</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label" for="materialLibrarySelect" style="font-size:0.73rem; font-weight:700; color:#1967d2; margin-bottom:0.2rem; display:block;">
+                    📚 1b. Course Materials Library (Select Multiple to Add)
+                  </label>
+                  <select id="materialLibrarySelect" class="form-select" style="width:100%; height:38px; padding:0.35rem 1.8rem 0.35rem 0.65rem; font-size:0.8rem; font-weight:500; border-color:#1a73e8; background:#ffffff;">
+                    <option value="">+ Add Material or Curriculum from Library...</option>
+                  </select>
+                </div>
+                <button type="button" id="saveMaterialToLibraryBtn" class="btn btn-primary" style="height:38px; font-size:0.75rem; padding:0.35rem 0.75rem; background:#1a73e8; white-space:nowrap;" title="Recognize current material/curriculum and save it into the Library dropdown">
+                  💾 Save to Library
+                </button>
+              </div>
+
+              <!-- Row 2: Target Category Selector + Multi-File Load Buttons (Local, Drive, Stream, Internet, Voice, Phone) -->
+              <div style="display:flex; flex-wrap:wrap; gap:0.45rem; align-items:center;">
+                <select id="loadTargetCategorySelect" class="form-select" style="width:auto; height:34px; padding:0.2rem 1.6rem 0.2rem 0.55rem; font-size:0.75rem; font-weight:600; color:#3c4043; background:#ffffff; border-color:#bdc1c6;" title="Choose whether newly loaded files are added as Course Material or Curriculum Standard">
+                  <option value="auto" selected>🤖 Auto-Detect (Material / Curriculum)</option>
+                  <option value="material">📄 Load as Material File(s)</option>
+                  <option value="curriculum">📘 Load as Curriculum File(s)</option>
+                </select>
+
+                <input type="file" id="studioFileUploadInput" accept=".txt,.md,.csv,.json,.pdf,.doc,.docx,image/*" multiple style="display:none;" />
+                <button type="button" id="studioUploadFileBtn" class="btn btn-secondary" style="font-size:0.75rem; padding:0.36rem 0.68rem;">
+                  📄 Load Local Files
+                </button>
+
+                <button type="button" id="openDrivePickerBtn" class="btn btn-secondary" style="font-size:0.75rem; padding:0.36rem 0.68rem; border-color:#1a73e8; color:#1967d2;">
+                  ☁️ Google Drive
+                </button>
+
+                <button type="button" id="openClassroomStreamBtn" class="btn btn-secondary" style="font-size:0.75rem; padding:0.36rem 0.68rem;">
+                  📥 Classroom Stream
+                </button>
+
+                <button type="button" id="openInternetSearchDrawerBtn" class="btn btn-secondary" style="font-size:0.75rem; padding:0.36rem 0.68rem; border-color:#9334e6; color:#7627bb; background:#f8f4ff;">
+                  🌐 Find in Internet
+                </button>
+
+                <button type="button" id="voiceDictateMaterialBtn" class="btn btn-secondary" style="font-size:0.75rem; padding:0.36rem 0.68rem; border-color:#1a73e8; color:#1a73e8;">
+                  🎤 Voice
+                </button>
+
+                <button type="button" id="openMaterialPhoneModalBtn" class="btn btn-secondary" style="font-size:0.75rem; padding:0.36rem 0.68rem; border-color:#1e8e3e; color:#137333;">
+                  📱 Phone / QR
+                </button>
+              </div>
+            </div>
+
+            <!-- Multi-File Loaded Curricula & Course Materials Stack -->
+            <div id="loadedStudioFilesContainer" style="display:none; padding:0.75rem; margin-bottom:0.8rem; border-radius:8px; background:#f8fbff; border:1px solid #d2e3fc;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.4rem;">
+                <div style="font-size:0.8rem; font-weight:700; color:#1967d2;">
+                  📂 Loaded Curriculum &amp; Material Files (<span id="loadedFilesTotalCount">0</span>):
+                  <span style="font-weight:600; color:#137333; margin-left:4px;">📘 <span id="loadedCurriculaCount">0</span> Curriculum</span>
+                  <span style="color:#dadce0; margin:0 4px;">•</span>
+                  <span style="font-weight:600; color:#1967d2;">📄 <span id="loadedMaterialsCount">0</span> Material(s)</span>
+                </div>
+                <span style="font-size:0.72rem; color:#5f6368;">You can load &amp; combine multiple files from Drive, Local, Stream, or Internet</span>
+              </div>
+              <div id="loadedStudioFilesList" style="display:flex; flex-direction:column; gap:0.45rem;"></div>
+            </div>
+
+            <!-- Find in Internet by Teacher Query Drawer -->
+            <div id="internetSearchDrawer" style="display:none; padding:0.85rem; border-radius:8px; background:#f8f4ff; border:1px solid #d7aefb; margin-bottom:0.8rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.45rem; flex-wrap:wrap; gap:0.4rem;">
+                <strong style="font-size:0.82rem; color:#7627bb;">🌐 Find Curriculum &amp; Reference Materials on the Internet by Teacher Query</strong>
+                <button type="button" id="closeInternetSearchDrawerBtn" style="background:none; border:none; color:#5f6368; cursor:pointer; font-size:0.78rem;">✕ Close</button>
+              </div>
+              <div style="display:flex; gap:0.45rem; margin-bottom:0.55rem; flex-wrap:wrap;">
+                <input type="text" id="internetQueryInput" class="form-control" placeholder="Type any curriculum, standard, or topic (e.g., AP Calculus Chain Rule, IB Math Binomial Theorem, MCR3U Functions)..." style="flex:1; min-width:220px; height:36px; font-size:0.82rem; background:#ffffff;" />
+                <button type="button" id="executeInternetSearchBtn" class="btn btn-primary" style="height:36px; font-size:0.78rem; padding:0.3rem 0.85rem; background:#7627bb; border-color:#7627bb; white-space:nowrap;">
+                  🔍 Search &amp; Recognize
+                </button>
+              </div>
+              <div id="internetSearchResultsList" style="display:flex; flex-direction:column; gap:0.45rem; max-height:240px; overflow-y:auto;"></div>
+            </div>
+
+            <!-- Automatic Document Type & Content Recognition Card -->
+            <div id="materialRecognitionCard" style="display:none; padding:0.7rem 0.85rem; margin-bottom:0.8rem; border-radius:8px; background:#e8f0fe; border:1px solid #d2e3fc; font-size:0.78rem; color:#1967d2;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.45rem; margin-bottom:0.35rem;">
+                <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                  <span class="badge badge-blue" id="recTypeBadge" style="font-size:0.68rem;">Recognized Type</span>
+                  <span class="badge badge-green" id="recCurriculumBadge" style="font-size:0.68rem;">Curriculum</span>
+                  <span id="recMetaSummary" style="font-weight:600; color:#202124;"></span>
+                </div>
+              </div>
+              <div style="display:flex; gap:0.45rem; align-items:center; flex-wrap:wrap;">
+                <input type="text" id="saveMaterialTitleInput" class="form-control" placeholder="Library item title..." style="flex:1; min-width:180px; height:32px; font-size:0.78rem; background:#ffffff;" />
+                <button type="button" id="confirmSaveMaterialBtn" class="btn btn-primary" style="height:32px; font-size:0.74rem; padding:0.2rem 0.7rem; white-space:nowrap;">
+                  ➕ Add to Dropdown &amp; Save in Library
+                </button>
+              </div>
+            </div>
+
+            <!-- Material Source Active Badge -->
+            <div id="activeMaterialBadge" style="display:none; align-items:center; justify-content:space-between; gap:0.65rem; padding:0.5rem 0.8rem; margin-bottom:0.8rem; border-radius:6px; background:#e6f4ea; border:1px solid #ceead6; font-size:0.8rem; color:#137333;">
+              <span id="activeMaterialName" style="font-weight:600; color:#137333; flex:1; min-width:0; overflow-wrap:anywhere;">📄 Attached Material</span>
+              <button type="button" id="clearMaterialBtn" style="background:#ffffff; border:1px solid #f5c2c7; border-radius:6px; padding:0.22rem 0.6rem; color:#c5221f; cursor:pointer; font-size:0.74rem; font-weight:700; white-space:nowrap;">✕ Clear All</button>
+            </div>
+
+            <!-- Collapsible Voice Dictation Panel -->
+            <div id="voiceDictationDrawer" style="display:none; padding:0.8rem; border-radius:8px; background:#e8f0fe; border:1px solid #d2e3fc; margin-bottom:0.8rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.45rem; flex-wrap:wrap; gap:0.4rem;">
+                <div style="display:flex; align-items:center; gap:0.45rem;">
+                  <span id="voiceRecordingIndicator" style="display:inline-block; width:9px; height:9px; border-radius:50%; background:#d93025;"></span>
+                  <strong style="font-size:0.82rem; color:#1967d2;">🎤 Teacher Voice Dictation</strong>
+                </div>
+                <button type="button" id="toggleVoiceRecBtn" class="btn btn-primary" style="font-size:0.74rem; padding:0.26rem 0.65rem;">
+                  🎙️ Start Voice Recording
+                </button>
+              </div>
+              <textarea id="voiceTranscriptInput" class="form-textarea" style="min-height:64px; background:#ffffff; font-size:0.82rem;" placeholder="Speak into your microphone — live transcript will appear here..."></textarea>
+            </div>
+
+            <!-- Handwritten / Phone Captured Images Gallery -->
+            <div id="handwrittenGalleryWrap" style="display:none; padding:0.8rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0; margin-bottom:0.8rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.45rem;">
+                <strong style="font-size:0.8rem; color:#202124;">📷 Attached Handwritten Captures (<span id="handwrittenCount">0</span>)</strong>
+                <span style="font-size:0.72rem; color:#137333; font-weight:500;">✓ Direct formula &amp; graph recognition</span>
+              </div>
+              <div id="handwrittenThumbnails" style="display:flex; gap:0.6rem; flex-wrap:wrap;"></div>
+            </div>
+
+            <!-- Classroom Stream Materials Drawer -->
+            <div id="classroomStreamDrawer" style="display:none; margin-bottom:0.8rem; padding:0.8rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.45rem;">
+                <span style="font-size:0.8rem; font-weight:600; color:#1967d2;">📚 Published Materials in Google Classroom Stream</span>
+                <button type="button" id="closeStreamDrawerBtn" style="background:none; border:none; color:#5f6368; cursor:pointer; font-size:0.78rem;">✕ Close</button>
+              </div>
+              <div id="classroomStreamList" style="display:flex; flex-direction:column; gap:0.45rem;"></div>
+            </div>
+
+            <!-- Combined WYSIWYG Material & Base Examples Editor -->
+            <div class="form-group" style="margin-bottom:0;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem; flex-wrap:wrap; gap:0.45rem;">
+                <label class="form-label" style="margin-bottom:0; font-size:0.84rem;">
+                  ✍️ Reference Material &amp; Base Examples (WYSIWYG Math + Text)
+                </label>
+                <button type="button" id="synthesizeMaterialsBtn" class="btn btn-primary" style="font-size:0.76rem; padding:0.34rem 0.75rem;">
+                  ✨ Recognize Notes / Voice &amp; Synthesize with LLM
+                </button>
+              </div>
+              <div id="materialStudioEditorWrap"></div>
+            </div>
+          </section>
+
+          <!-- =================================================================
+               BELOW BLOCK 1 ON LEFT COLUMN:
+               Edit Descriptions & Socratic AI Prompts for Levels A, B, and C
+               ================================================================= -->
+          <section id="block1LevelPromptsStudio" class="glass-panel" style="padding:1.15rem; background:#ffffff; border:1px solid #dadce0; border-top:4px solid #f29900;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem;">
+              <div>
+                <span class="badge badge-amber" style="font-size:0.68rem; margin-bottom:0.15rem;">LEVELS A / B / C • DESCRIPTIONS &amp; AI PROMPTS</span>
+                <h3 style="font-size:0.98rem; color:#202124; margin:0;">🎚️ Edit Level (A, B, C) Descriptions &amp; Socratic Prompts</h3>
+                <p style="font-size:0.76rem; color:#5f6368; margin-top:0.15rem;">
+                  Customize the pedagogical description and Socratic tutoring instructions for each difficulty tier (Level A, Level B, Level C).
+                </p>
+              </div>
+              <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                <button type="button" id="autoTailorLevelPromptsBtn" class="btn btn-secondary" style="font-size:0.72rem; padding:0.26rem 0.65rem; border-color:#1a73e8; color:#1967d2;">
+                  ✨ Auto-Tailor to Topic
+                </button>
+                <button type="button" id="resetLevelPromptsBtn" class="btn btn-secondary" style="font-size:0.72rem; padding:0.26rem 0.65rem;">
+                  🔄 Reset Defaults
+                </button>
+              </div>
+            </div>
+
+            <!-- Level A / B / C Config Cards -->
+            <div style="display:flex; flex-direction:column; gap:0.65rem;">
+              <!-- Level A -->
+              <div style="padding:0.7rem 0.85rem; border-radius:8px; background:#f8fbff; border:1px solid #ceead6; border-left:4px solid #1e8e3e;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                  <strong style="font-size:0.8rem; color:#137333;">🟢 Level A (Foundational Tier)</strong>
+                  <span style="font-size:0.7rem; color:#5f6368;">Guided Step-by-Step Scaffolding</span>
+                </div>
+                <div style="margin-bottom:0.35rem;">
+                  <label class="form-label" for="levelDescInputA" style="font-size:0.72rem; margin-bottom:0.15rem; color:#3c4043;">Level A Description:</label>
+                  <input type="text" id="levelDescInputA" class="form-control" value="Foundational Scaffolding: Single-step rule recognition, basic definitions, and guided step-by-step verification." style="height:32px; font-size:0.78rem; background:#ffffff;" />
+                </div>
+                <div>
+                  <label class="form-label" for="levelPromptInputA" style="font-size:0.72rem; margin-bottom:0.15rem; color:#3c4043;">Level A Socratic AI Prompt:</label>
+                  <textarea id="levelPromptInputA" class="form-textarea" style="min-height:48px; font-size:0.76rem; background:#ffffff; padding:0.35rem 0.55rem;">Guide the student one small step at a time. Ask them to identify which rule from the Reference Sheet applies first, and require them to write the intermediate algebraic substitution before computing the final number.</textarea>
+                </div>
+              </div>
+
+              <!-- Level B -->
+              <div style="padding:0.7rem 0.85rem; border-radius:8px; background:#f8fbff; border:1px solid #d2e3fc; border-left:4px solid #1a73e8;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                  <strong style="font-size:0.8rem; color:#1967d2;">🔵 Level B (Standard Curriculum Tier)</strong>
+                  <span style="font-size:0.7rem; color:#5f6368;">Multi-Step Operational Priority</span>
+                </div>
+                <div style="margin-bottom:0.35rem;">
+                  <label class="form-label" for="levelDescInputB" style="font-size:0.72rem; margin-bottom:0.15rem; color:#3c4043;">Level B Description:</label>
+                  <input type="text" id="levelDescInputB" class="form-control" value="Standard Curriculum Mastery: Multi-step simplification combining two or more rules in proper operational priority." style="height:32px; font-size:0.78rem; background:#ffffff;" />
+                </div>
+                <div>
+                  <label class="form-label" for="levelPromptInputB" style="font-size:0.72rem; margin-bottom:0.15rem; color:#3c4043;">Level B Socratic AI Prompt:</label>
+                  <textarea id="levelPromptInputB" class="form-textarea" style="min-height:48px; font-size:0.76rem; background:#ffffff; padding:0.35rem 0.55rem;">Prompt the student to justify operational priority (e.g., Power Law before Quotient/Product Law) and require every intermediate transformation step to be shown explicitly.</textarea>
+                </div>
+              </div>
+
+              <!-- Level C -->
+              <div style="padding:0.7rem 0.85rem; border-radius:8px; background:#fffdf7; border:1px solid #fde293; border-left:4px solid #f29900;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem;">
+                  <strong style="font-size:0.8rem; color:#b06000;">🟣 Level C (Advanced / Mastery Tier)</strong>
+                  <span style="font-size:0.7rem; color:#5f6368;">Equations, Domain Restrictions &amp; Proofs</span>
+                </div>
+                <div style="margin-bottom:0.35rem;">
+                  <label class="form-label" for="levelDescInputC" style="font-size:0.72rem; margin-bottom:0.15rem; color:#3c4043;">Level C Description:</label>
+                  <input type="text" id="levelDescInputC" class="form-control" value="Advanced & Olympiad Challenge: Complex equations, domain restrictions, extraneous root verification, and multi-concept proofs." style="height:32px; font-size:0.78rem; background:#ffffff;" />
+                </div>
+                <div>
+                  <label class="form-label" for="levelPromptInputC" style="font-size:0.72rem; margin-bottom:0.15rem; color:#3c4043;">Level C Socratic AI Prompt:</label>
+                  <textarea id="levelPromptInputC" class="form-textarea" style="min-height:48px; font-size:0.76rem; background:#ffffff; padding:0.35rem 0.55rem;">Challenge the student with minimal hints. Require full algebraic derivation, explicit domain restriction checks (e.g., x > 0), and verification/rejection of extraneous roots.</textarea>
+                </div>
+              </div>
+            </div>
+          </section>
+          </div>
+
+          <!-- =================================================================
+               RIGHT COLUMN (50%): BLOCK 2 — AI Lesson Plan & Adaptive Exercise Pool
+               ================================================================= -->
+          <section id="block2LessonPlanStudio" class="glass-panel" style="padding:1.25rem; background:#ffffff; border:1px solid #dadce0; border-top:4px solid #1e8e3e;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.6rem; margin-bottom:0.85rem;">
+              <div>
+                <div style="display:flex; align-items:center; gap:0.45rem; margin-bottom:0.2rem; flex-wrap:wrap;">
+                  <span class="badge badge-green">BLOCK 2 • LESSON PLAN &amp; 30-PROBLEM POOL</span>
+                  <span id="lessonPlanStatusPill" style="font-size:0.72rem; color:#5f6368; background:#f8f9fa; border:1px solid #dadce0; padding:0.1rem 0.55rem; border-radius:999px; font-weight:600;">
+                    Blank — Waiting for Material or Selection
+                  </span>
+                </div>
+                <h2 style="font-size:1.08rem; color:#202124;">🎯 2. AI Lesson Plan &amp; Adaptive Exercise Pool</h2>
+              </div>
+              <button type="button" id="generateLessonDraftBtn" class="btn btn-primary" style="font-size:0.8rem; padding:0.42rem 0.9rem; background:#1e8e3e; border-color:#1e8e3e; white-space:nowrap;">
+                ✨ Propose Lesson Plan Draft &amp; Generate 30-Problem Pool
+              </button>
+            </div>
+
+            <!-- Ergonomic Saved Lesson Plans Library, Existing Lesson Plan Selector, Curriculum/Grade/Subject & Title -->
+            <div style="padding:0.9rem; border-radius:10px; background:#f8f9fa; border:1px solid #dadce0; margin-bottom:1rem;">
+              <!-- Saved Lesson Plans Library Dropdown + Save Current Lesson Plan Button -->
+              <div class="form-group" style="margin-bottom:0.65rem; padding:0.6rem 0.7rem; border-radius:8px; background:#e6f4ea; border:1px solid #ceead6;">
+                <label class="form-label" for="savedLessonPlansSelect" style="color:#137333; font-weight:700; font-size:0.78rem; margin-bottom:0.25rem; display:block;">
+                  ⭐ Saved Lesson Plans Library (Load or Save Created Lesson Plans)
+                </label>
+                <div style="display:flex; gap:0.45rem; align-items:center; flex-wrap:wrap;">
+                  <select id="savedLessonPlansSelect" class="form-select" style="flex:1; min-width:210px; font-weight:500; border-color:#1e8e3e; background:#ffffff; height:36px; font-size:0.8rem;">
+                    <option value="">⭐ Select a Saved Lesson Plan from Library...</option>
+                  </select>
+                  <button type="button" id="saveLessonPlanToLibraryBtn" class="btn btn-primary" style="height:36px; font-size:0.76rem; padding:0.3rem 0.85rem; background:#137333; border-color:#137333; white-space:nowrap;">
+                    💾 Save Lesson Plan to Library
+                  </button>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom:0.65rem;">
+                <label class="form-label" for="existingLessonPlanSelect" style="color:#1967d2; font-weight:600; font-size:0.8rem; margin-bottom:0.25rem;">
+                  📂 Pre-Built Curriculum Units &amp; Templates
+                </label>
+                <select id="existingLessonPlanSelect" class="form-select" style="font-weight:500; border-color:#1a73e8; background:#ffffff; height:38px; font-size:0.82rem;">
+                  <option value="">✨ Create New Lesson Plan (from Block 1 Materials)</option>
+                  <optgroup label="📘 Ontario MHF4U — Grade 12 Advanced Functions">
+                    <option value="mhf4u:lesson-laws-of-logarithms">Unit 5.1: Product, Quotient, and Power Laws of Logarithms</option>
+                    <option value="mhf4u:lesson-power-law">Unit 5.2: The Power Law &amp; Solving Exponential Equations</option>
+                    <option value="mhf4u:lesson-solving-log-equations">Unit 5.3: Solving Logarithmic Equations &amp; Extraneous Roots</option>
+                    <option value="mhf4u:lesson-factor-theorem">Unit 1.1: Remainder and Factor Theorems for Cubic Polynomials</option>
+                    <option value="mhf4u:lesson-poly-inequalities">Unit 1.2: Solving Polynomial Inequalities with Sign Charts</option>
+                    <option value="mhf4u:lesson-rational-asymptotes">Unit 2.1: Vertical, Horizontal &amp; Oblique Asymptotes of Rational Functions</option>
+                    <option value="mhf4u:lesson-rational-inequalities">Unit 2.2: Solving Rational Inequalities with Interval Tables</option>
+                    <option value="mhf4u:lesson-exact-trig-values">Unit 3.1: Radian Measure &amp; Exact Trigonometric Ratios</option>
+                    <option value="mhf4u:lesson-trig-identities">Unit 3.2: Proving Trigonometric Identities</option>
+                    <option value="mhf4u:lesson-exp-transformations">Unit 4.1: Transformations of Exponential Functions</option>
+                    <option value="mhf4u:lesson-exp-growth-decay">Unit 4.2: Modeling Exponential Growth and Decay</option>
+                  </optgroup>
+                  <optgroup label="📐 Mathematics &amp; Calculus (US, AP, IB, UK &amp; Canada)">
+                    <option value="tpl:tpl-quadratics">Completing the Square, Vertex Form &amp; Quadratic Formula (Grade 10)</option>
+                    <option value="tpl:tpl-vectors-3d">Lines, Planes &amp; Vectors in 3-Space — MCV4U (Grade 12)</option>
+                    <option value="lib:lib-ap-calc-chain-rule">AP Calculus AB/BC — Derivatives &amp; Chain Rule (Grade 12)</option>
+                    <option value="lib:lib-ib-math-binomial-induction">IB Diploma Math AA — Binomial Theorem &amp; Series (Grade 12)</option>
+                    <option value="lib:lib-uk-alevel-trig-identities">UK Cambridge A-Level — Trigonometric Identities (Grade 12)</option>
+                  </optgroup>
+                  <optgroup label="🧪 Science (Chemistry, Biology, Physics)">
+                    <option value="tpl:tpl-stoichiometry">Limiting Reactants &amp; Stoichiometric Ratios (Chemistry Grade 11)</option>
+                    <option value="tpl:tpl-photosynthesis">Photosynthesis: Light Reactions vs. Calvin Cycle (Biology Grade 11)</option>
+                    <option value="lib:lib-openstax-phys-newton">Newton's Laws of Motion &amp; Free-Body Diagrams (Physics Grade 11–12)</option>
+                  </optgroup>
+                  <optgroup label="📖 English &amp; Humanities">
+                    <option value="tpl:tpl-rhetorical-analysis">Analyzing Rhetorical Appeals &amp; Logical Fallacies (Grade 11)</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <!-- Grade Level & Subject Row (Curriculum moved to Block 1 on the left) -->
+              <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0.5rem; margin-bottom:0.65rem;">
+                <div>
+                  <label class="form-label" for="gradeSelect" style="font-size:0.74rem; margin-bottom:0.2rem;">Grade Level</label>
+                  <select id="gradeSelect" class="form-select" style="height:36px; font-size:0.8rem; padding:0.25rem 0.5rem;">
+                    <option value="Grade 9">Grade 9</option>
+                    <option value="Grade 10">Grade 10</option>
+                    <option value="Grade 11">Grade 11</option>
+                    <option value="Grade 12" selected>Grade 12</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="form-label" for="subjectSelect" style="font-size:0.74rem; margin-bottom:0.2rem;">Subject</label>
+                  <select id="subjectSelect" class="form-select" style="height:36px; font-size:0.8rem; padding:0.25rem 0.5rem; font-weight:600; color:#1967d2;">
+                    <option value="Mathematics" selected>Mathematics</option>
+                    <option value="Chemistry">Chemistry</option>
+                    <option value="Biology">Biology</option>
+                    <option value="Physics">Physics</option>
+                    <option value="Computer Science">Comp Sci</option>
+                    <option value="English & Humanities">Humanities</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Lesson Plan Title Input -->
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="titleInput" style="margin-bottom:0.25rem; color:#202124; font-size:0.82rem; font-weight:600;">
+                  📝 Lesson Plan Title
+                </label>
+                <div style="position:relative; display:flex; align-items:center;">
+                  <input
+                    type="text"
+                    id="titleInput"
+                    class="form-control"
+                    value=""
+                    placeholder="Enter Lesson Plan Title, choose from Load Existing Lesson Plan above, or generate from Block 1..."
+                    style="width:100%; height:40px; font-size:0.95rem; font-weight:600; color:#202124; padding:0.5rem 2.2rem 0.5rem 0.75rem; border:1.5px solid #dadce0; border-radius:8px; background:#ffffff;"
+                    required
+                  />
+                  <button
+                    type="button"
+                    id="clearTitleBtn"
+                    title="Clear Lesson Plan Title"
+                    style="position:absolute; right:8px; background:none; border:none; color:#80868b; cursor:pointer; font-size:0.9rem; padding:4px;"
+                  >✕</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Combined Single Window: Learning Goal, Target Concept Milestones & Teacher Instructions -->
+            <div style="padding:0.8rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0; margin-bottom:1rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem; flex-wrap:wrap; gap:0.4rem;">
+                <label class="form-label" for="goalEditorWrap" style="margin-bottom:0; font-size:0.82rem; font-weight:700; color:#202124;">
+                  🎯 Learning Goal, Target Concept Milestones &amp; Teacher Instructions (WYSIWYG Math + Text)
+                </label>
+                <button type="button" id="voiceDictateLessonBtn" class="btn btn-secondary" style="font-size:0.72rem; padding:0.22rem 0.6rem;">
+                  🎤 Dictate Instructions
+                </button>
+              </div>
+              <div id="goalEditorWrap"></div>
+              <input type="hidden" id="goalInput" value="" />
+              <textarea id="milestonesInput" style="display:none;"></textarea>
+              <textarea id="teacherLessonInstructions" style="display:none;"></textarea>
+            </div>
+
+            <!-- ===============================================================
+                 POINT 4: Teacher's Exercise Bank: Levels A / B / C (Up to 10 per Tier)
+                 =============================================================== -->
+            <div style="padding:1rem; border-radius:10px; background:#f8f9fa; border:1px solid #dadce0; margin-bottom:1rem;">
+              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.75rem;">
+                <div>
+                  <span class="badge badge-blue" style="font-size:0.68rem; margin-bottom:0.15rem;">ADAPTIVE EXERCISE POOL • UP TO 10 PER TIER</span>
+                  <h3 style="font-size:0.95rem; color:#202124;">Teacher's Exercise Bank: Levels A / B / C</h3>
+                </div>
+                <div style="display:flex; gap:0.4rem; align-items:center; flex-wrap:wrap;">
+                  <label for="repetitionsPerTierSelect" style="font-size:0.76rem; color:#3c4043; font-weight:600;">Problems per tier:</label>
+                  <select id="repetitionsPerTierSelect" class="form-select" style="width:auto; height:32px; padding:0.2rem 1.7rem 0.2rem 0.55rem; font-size:0.78rem; font-weight:600;">
+                    <option value="1">1 per tier</option>
+                    <option value="2">2 per tier</option>
+                    <option value="3" selected>3 per tier (Recommended)</option>
+                    <option value="4">4 per tier</option>
+                    <option value="5">5 per tier</option>
+                    <option value="6">6 per tier</option>
+                    <option value="8">8 per tier</option>
+                    <option value="10">10 per tier (All 10)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Auto-Diagnose vs Fixed Starting Tier -->
+              <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0.55rem; margin-bottom:0.75rem;">
+                <label id="modeCardAutoDiag" style="display:flex; align-items:flex-start; gap:0.5rem; padding:0.6rem 0.7rem; border-radius:8px; background:#e8f0fe; border:2px solid #1a73e8; cursor:pointer;">
+                  <input type="radio" name="adaptiveEntryMode" value="AUTO_DIAGNOSE" checked style="margin-top:0.2rem;" />
+                  <div>
+                    <div style="font-size:0.78rem; font-weight:600; color:#1967d2;">🧭 Auto-Diagnose Student</div>
+                    <div style="font-size:0.71rem; color:#3c4043;">Checks baseline and guides A → B → C.</div>
+                  </div>
+                </label>
+
+                <label id="modeCardProgressive" style="display:flex; align-items:flex-start; gap:0.5rem; padding:0.6rem 0.7rem; border-radius:8px; background:#ffffff; border:1px solid #dadce0; cursor:pointer;">
+                  <input type="radio" name="adaptiveEntryMode" value="FIXED_TIER" style="margin-top:0.2rem;" />
+                  <div>
+                    <div style="font-size:0.78rem; font-weight:600; color:#202124;">🎯 Start at Selected Tier</div>
+                    <div style="font-size:0.71rem; color:#5f6368;">Begins at selected tier (A, B, or C).</div>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Level A / B / C Selection Cards -->
+              <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.55rem; margin-bottom:0.75rem;">
+                <div id="exTabA" role="button" tabindex="0" onclick="window.selectLevelCard && window.selectLevelCard('A')" style="padding:0.65rem; border-radius:8px; background:#e8f0fe; border:2px solid #1a73e8; cursor:pointer; transition:all 0.15s;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.15rem; flex-wrap:wrap; gap:0.2rem;">
+                    <span class="badge badge-green" style="font-size:0.64rem;">LEVEL A</span>
+                    <span id="poolCountBadgeA" style="font-size:0.7rem; color:#1967d2; font-weight:700;">0/0 selected</span>
+                  </div>
+                  <div style="font-size:0.78rem; font-weight:600; color:#1967d2;">Foundational</div>
+                </div>
+
+                <div id="exTabB" role="button" tabindex="0" onclick="window.selectLevelCard && window.selectLevelCard('B')" style="padding:0.65rem; border-radius:8px; background:#ffffff; border:1px solid #dadce0; cursor:pointer; transition:all 0.15s;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.15rem; flex-wrap:wrap; gap:0.2rem;">
+                    <span class="badge badge-blue" style="font-size:0.64rem;">LEVEL B</span>
+                    <span id="poolCountBadgeB" style="font-size:0.7rem; color:#5f6368; font-weight:700;">0/0 selected</span>
+                  </div>
+                  <div style="font-size:0.78rem; font-weight:600; color:#202124;">Standard</div>
+                </div>
+
+                <div id="exTabC" role="button" tabindex="0" onclick="window.selectLevelCard && window.selectLevelCard('C')" style="padding:0.65rem; border-radius:8px; background:#ffffff; border:1px solid #dadce0; cursor:pointer; transition:all 0.15s;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.15rem; flex-wrap:wrap; gap:0.2rem;">
+                    <span class="badge badge-amber" style="font-size:0.64rem;">LEVEL C</span>
+                    <span id="poolCountBadgeC" style="font-size:0.7rem; color:#5f6368; font-weight:700;">0/0 selected</span>
+                  </div>
+                  <div style="font-size:0.78rem; font-weight:600; color:#202124;">Advanced</div>
+                </div>
+              </div>
+
+              <!-- Generated Exercise Pool Checkboxes -->
+              <div style="background:#ffffff; border:1px solid #dadce0; border-radius:8px; padding:0.85rem;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.55rem; flex-wrap:wrap; gap:0.4rem;">
+                  <strong id="activePoolTierHeader" style="font-size:0.84rem; color:#202124;">Generated Exercise Pool: Level A (Foundational)</strong>
+                  <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+                    <button type="button" id="selectAllPoolBtn" class="btn btn-secondary" style="font-size:0.7rem; padding:0.2rem 0.5rem;">✓ Select All 10</button>
+                    <button type="button" id="deselectAllPoolBtn" class="btn btn-secondary" style="font-size:0.7rem; padding:0.2rem 0.5rem;">☐ Clear</button>
+                    <button type="button" id="regeneratePoolTierBtn" class="btn btn-secondary" style="font-size:0.7rem; padding:0.2rem 0.55rem; color:#1a73e8; border-color:#d2e3fc;">🔄 Refresh 10</button>
+                  </div>
+                </div>
+
+                <!-- Diagnostic Questions Preview -->
+                <div id="diagnosticPoolPreview" style="display:none; padding:0.55rem 0.75rem; border-radius:6px; background:#e8f0fe; border:1px solid #d2e3fc; margin-bottom:0.6rem; font-size:0.76rem; color:#1967d2;">
+                  <strong>🧭 Initial Diagnostic Check:</strong>
+                  <span id="diagnosticQuestionText"></span>
+                </div>
+
+                <!-- Selectable Exercise Option List for Active Tier -->
+                <div id="exercisePoolOptionsList" style="display:flex; flex-direction:column; gap:0.45rem; max-height:420px; overflow-y:auto; padding-right:0.2rem;">
+                  <!-- Populated dynamically by discovery.js -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Socratic AI Engine & Guidance Mode -->
+            <div style="display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0.55rem; margin-bottom:1rem;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="studentModeSelect" style="font-size:0.75rem;">Student Mode</label>
+                <select id="studentModeSelect" class="form-select" style="height:36px; font-size:0.78rem; padding:0.25rem 0.5rem;">
+                  <option value="step_by_step" selected>👣 Step-by-Step Socratic</option>
+                  <option value="independent">🚀 Independent + Verify</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="styleSelect" style="font-size:0.75rem;">Socratic Style</label>
+                <select id="styleSelect" class="form-select" style="height:36px; font-size:0.78rem; padding:0.25rem 0.5rem;">
+                  <option value="guided_scaffold" selected>Guided Inquiry</option>
+                  <option value="pure_socratic">Pure Socratic</option>
+                  <option value="devil_advocate">Devil's Advocate</option>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="modelSelect" style="font-size:0.75rem;">AI Tutor Engine</label>
+                <select id="modelSelect" class="form-select" style="height:36px; font-size:0.78rem; padding:0.25rem 0.5rem;">
+                  <option value="gemini:gemini-3.1-flash-lite" selected>Gemini 3.1 Flash</option>
+                  <option value="gemini:gemini-1.5-pro">Gemini 1.5 Pro</option>
+                  <option value="claude:claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                  <option value="openai:gpt-4o">OpenAI GPT-4o</option>
+                </select>
+              </div>
+            </div>
+            <div id="modelStatusBox" style="display:none;"></div>
+
+            <!-- Action Footer inside Block 2 -->
+            <div id="attachmentActionFooterBox" style="padding:0.85rem 1rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; transition:all 0.2s ease;">
+              <div style="font-size:0.76rem; color:#5f6368; flex:1; min-width:180px;">
+                <span id="attachmentStatusBannerText">🔒 <strong>Not Attached Yet</strong> — Only attaches when you push <strong>📎 Attach Activity to Assignment</strong>.</span>
+              </div>
+              <div style="display:flex; gap:0.55rem; align-items:center; flex-wrap:wrap;">
+                <button type="button" id="previewStudentBtn" class="btn btn-secondary" style="padding:0.5rem 0.95rem; font-size:0.82rem;">
+                  👁️ Preview Student View
+                </button>
+                <button type="button" class="btn btn-primary" id="attachBtn" style="padding:0.52rem 1.15rem; font-size:0.84rem;">
+                  📎 Attach Activity to Assignment
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- =================================================================
+             DORMANT LEGACY EDITORS (POINTS 4 & 5)
+             Preserved intact in DOM with display:none so WYSIWYG editors
+             can be reactivated anytime via window.FEATURE_FLAGS
+             ================================================================= -->
+        <div id="dormantLegacyEditors" style="display:none;" aria-hidden="true">
+          <div id="exEditorPanelA">
+            <div id="exProblemWrapA"></div>
+            <input type="text" id="exAnswerA" value="" />
+            <input type="text" id="exRubricA" value="" />
+          </div>
+          <div id="exEditorPanelB">
+            <div id="exProblemWrapB"></div>
+            <input type="text" id="exAnswerB" value="" />
+            <input type="text" id="exRubricB" value="" />
+          </div>
+          <div id="exEditorPanelC">
+            <div id="exProblemWrapC"></div>
+            <input type="text" id="exAnswerC" value="" />
+            <input type="text" id="exRubricC" value="" />
+          </div>
+          <button type="button" id="resetExerciseBankBtn">Reset</button>
+          <div id="promptEditorWrap"></div>
+          <textarea id="promptInput"></textarea>
+          <input type="text" id="hintInput" value="" />
+          <textarea id="courseMaterialsInput"></textarea>
+          <input type="file" id="materialFileInput" />
+          <button type="button" id="uploadFileBtn">Upload</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <!-- =======================================================================
+       GOOGLE DRIVE CLOUD PICKER MODAL (Opens Google Drive — NOT Local Folder)
+       ======================================================================= -->
+  <div id="googleDriveModal" style="display:none; position:fixed; inset:0; background:rgba(32,33,36,0.55); z-index:2100; align-items:center; justify-content:center; padding:1rem;">
+    <div class="glass-panel" style="max-width:640px; width:100%; padding:1.5rem; background:#ffffff; border:1px solid #dadce0; border-radius:12px; box-shadow:0 8px 28px rgba(60,64,67,0.28);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.85rem; border-bottom:1px solid #dadce0; padding-bottom:0.75rem;">
+        <div style="display:flex; align-items:center; gap:0.6rem;">
+          <span style="font-size:1.35rem;">☁️</span>
+          <div>
+            <h3 style="font-size:1.05rem; color:#202124; margin:0;">Google Drive — Select Course Material</h3>
+            <div style="font-size:0.76rem; color:#5f6368;">Connected to Google Workspace Drive (`My Drive / Classroom`)</div>
+          </div>
+        </div>
+        <button type="button" id="closeDriveModalBtn" style="background:none; border:none; font-size:1.15rem; color:#5f6368; cursor:pointer;">✕</button>
+      </div>
+
+      <!-- Search & Drive URL Bar -->
+      <div style="display:flex; gap:0.5rem; margin-bottom:0.85rem;">
+        <input type="text" id="driveSearchInput" class="form-control" placeholder="🔍 Search your Google Drive files (e.g., Logarithms, Stoichiometry, Quadratics, Physics)..." style="font-size:0.85rem; height:38px;" />
+        <button type="button" id="driveSearchBtn" class="btn btn-secondary" style="height:38px; font-size:0.8rem; white-space:nowrap;">Search Drive</button>
+      </div>
+
+      <!-- Drive File List -->
+      <div id="driveFilesList" style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:0.5rem; margin-bottom:1rem; padding-right:0.2rem;">
+        <!-- Populated dynamically from /api/google-drive/files -->
+      </div>
+
+      <!-- Paste Direct Google Docs / Drive Link -->
+      <div style="padding:0.75rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0; display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+        <input type="url" id="driveDirectUrlInput" class="form-control" placeholder="🔗 Or paste a Google Docs / Google Drive sharing link (https://docs.google.com/...)..." style="flex:1; min-width:220px; font-size:0.82rem; height:36px;" />
+        <button type="button" id="importDriveUrlBtn" class="btn btn-primary" style="height:36px; font-size:0.8rem; white-space:nowrap;">
+          Import Link
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phone Camera / QR Bridge Modal for Block 1 Material Studio (Clean — No Sample Button) -->
+  <div id="materialPhoneModal" style="display:none; position:fixed; inset:0; background:rgba(32,33,36,0.55); z-index:2000; align-items:center; justify-content:center; padding:1rem;">
+    <div class="glass-panel" style="max-width:520px; width:100%; padding:1.5rem; background:#ffffff; border:1px solid #dadce0; border-radius:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <h3 style="font-size:1.05rem; color:#202124;">📱 Capture Handwritten Materials by Phone</h3>
+        <button type="button" id="closeMaterialPhoneModalBtn" style="background:none; border:none; font-size:1.1rem; color:#5f6368; cursor:pointer;">✕</button>
+      </div>
+      <p style="font-size:0.83rem; color:#5f6368; margin-bottom:1rem;">
+        Scan the QR code below with your phone to photograph handwritten notes, textbook pages, or board work. The multimodal LLM recognizes formulas, graphs, and text directly.
+      </p>
+
+      <div style="display:grid; grid-template-columns:140px 1fr; gap:1rem; align-items:center; padding:0.9rem; background:#f8f9fa; border:1px solid #dadce0; border-radius:8px; margin-bottom:1rem;">
+        <div style="text-align:center;">
+          <img id="materialQrImg" src="" alt="QR Code" style="width:124px; height:124px; border-radius:8px; border:1px solid #dadce0; background:#ffffff; padding:4px;" />
+        </div>
+        <div>
+          <div style="font-size:0.84rem; font-weight:600; color:#202124; margin-bottom:0.35rem;">1. Scan QR Code with Your Phone Camera</div>
+          <p style="font-size:0.77rem; color:#5f6368; margin-bottom:0.5rem;">
+            Opens the SocratesAI Mobile Camera. Snap a photo of your page — it will automatically appear here in Block 1.
+          </p>
+          <a id="materialQrDirectLink" href="#" target="_blank" style="font-size:0.76rem; color:#1a73e8; text-decoration:underline;">Open Mobile Camera Bridge in New Tab ↗</a>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.55rem;">
+        <input type="file" id="directCameraMaterialInput" accept="image/*" capture="environment" style="display:none;" />
+        <button type="button" id="triggerDirectCameraMaterialBtn" class="btn btn-primary" style="width:100%;">
+          📸 Take Photo / Upload Handwritten Sheet from Device
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/discovery.js?v=20261118d"></script>
+</body>
+</html>

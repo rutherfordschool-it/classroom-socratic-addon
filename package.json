@@ -1,0 +1,35 @@
+{
+  "name": "google-classroom-socratic-addon",
+  "version": "1.0.0",
+  "description": "Google Classroom Add-on: Socratic Educational LLM Tutor with Multi-Model Support (Gemini, Claude, ChatGPT) for US and Canadian High Schools",
+  "main": "server/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "keywords": [
+    "google-classroom",
+    "classroom-addon",
+    "education",
+    "socratic-tutor",
+    "gemini",
+    "claude",
+    "chatgpt",
+    "high-school"
+  ],
+  "author": "Antigravity Education",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@google/generative-ai": "^0.24.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "googleapis": "^144.0.0",
+    "openai": "^4.86.1"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.16.0"
+  }
+}

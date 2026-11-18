@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SocratesAI - Google Classroom Add-on Hub</title>
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/components.css">
+  <style>
+    .hero-section {
+      padding: 60px 20px 40px;
+      text-align: center;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .hero-title {
+      font-size: 2.5rem;
+      line-height: 1.2;
+      margin-bottom: 18px;
+      color: #202124;
+    }
+    .hero-subtitle {
+      font-size: 1.1rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    .action-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1100px;
+      margin: 0 auto 50px;
+      padding: 0 20px;
+    }
+    .action-card {
+      padding: 26px;
+      background: #ffffff;
+      border: 1px solid #dadce0;
+      border-radius: var(--radius-lg);
+      transition: var(--transition);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 1px 2px rgba(60, 64, 67, 0.12);
+    }
+    .action-card:hover {
+      transform: translateY(-2px);
+      border-color: #1a73e8;
+      box-shadow: 0 4px 12px rgba(26, 115, 232, 0.12);
+    }
+    .arch-diagram {
+      background: #ffffff;
+      border: 1px solid #dadce0;
+      border-radius: var(--radius-md);
+      padding: 24px;
+      margin: 30px auto;
+      max-width: 1060px;
+      overflow-x: auto;
+    }
+    .flow-step {
+      background: #f8f9fa;
+      border: 1px solid #dadce0;
+      border-radius: var(--radius-sm);
+      padding: 16px;
+      margin-bottom: 12px;
+      color: #3c4043;
+    }
+  </style>
+</head>
+<body style="background:#f8f9fa; color:#202124;">
+
+  <!-- Top Global Navbar -->
+  <header style="border-bottom:1px solid #dadce0; padding:14px 30px; display:flex; justify-content:space-between; align-items:center; background:#ffffff; position:sticky; top:0; z-index:100;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="tutor-avatar" style="width:36px; height:36px; font-size:1.1rem;">🏛️</div>
+      <div>
+        <h2 style="font-size:1.1rem; margin:0;">SocratesAI</h2>
+        <p style="font-size:0.75rem; color:var(--text-muted); margin:0;">Google Classroom Add-on Platform</p>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:12px;">
+      <a href="/simulator.html" class="btn btn-primary btn-sm">
+        🎮 Launch Classroom Simulator
+      </a>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div style="display:inline-flex; align-items:center; gap:8px; margin-bottom:16px;">
+      <span class="badge badge-curriculum">Official Google Classroom Add-on</span>
+      <span class="badge badge-model">Multi-LLM: Gemini • Claude • ChatGPT</span>
+      <span class="badge badge-grade">US & Canadian High Schools</span>
+    </div>
+    <h1 class="hero-title">
+      Socratic Educational AI Tutor for Google Classroom
+    </h1>
+    <p class="hero-subtitle">
+      A high-school level interactive AI tutor built to integrate directly into Google Classroom assignments, student viewports, and teacher grading dashboards via the Google Workspace Marketplace.
+    </p>
+    <div style="display:flex; justify-content:center; gap:14px; flex-wrap:wrap;">
+      <a href="/simulator.html" class="btn btn-primary" style="padding:14px 28px; font-size:1.05rem;">
+        🎮 Open Classroom Interactive Simulator
+      </a>
+      <a href="/attachment-discovery.html" class="btn btn-secondary" style="padding:14px 24px;">
+        👨‍🏫 Teacher Discovery Flow
+      </a>
+      <a href="/student-work.html?attachmentId=att-demo-socratic-01" class="btn btn-secondary" style="padding:14px 24px;">
+        🎒 Student Learning View
+      </a>
+      <a href="/teacher-review.html?submissionId=sub-pavel-birulin-live" class="btn btn-secondary" style="padding:14px 24px;">
+        📊 Teacher Grading & Review
+      </a>
+    </div>
+  </section>
+
+  <!-- Action & Journey Launch Cards -->
+  <section class="action-cards">
+    <div class="action-card">
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+          <span style="font-size:2rem;">👨‍🏫</span>
+          <span class="badge badge-curriculum">Teacher Journey</span>
+        </div>
+        <h3 style="font-size:1.25rem; margin-bottom:8px;">1. Attachment Discovery</h3>
+        <p style="font-size:0.88rem; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">
+          Teachers select from US Common Core / NGSS or Canadian Provincial standards (Ontario, BC, Alberta). Customize Socratic guardrails, choose between Gemini, Claude, or ChatGPT, and attach to coursework.
+        </p>
+      </div>
+      <a href="/attachment-discovery.html" class="btn btn-secondary btn-sm" style="width:100%;">
+        Open Discovery View ↗
+      </a>
+    </div>
+
+    <div class="action-card">
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+          <span style="font-size:2rem;">🎒</span>
+          <span class="badge badge-grade">Student Journey</span>
+        </div>
+        <h3 style="font-size:1.25rem; margin-bottom:8px;">2. Socratic Student Work</h3>
+        <p style="font-size:0.88rem; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">
+          Embedded student iframe where students engage in step-by-step inquiry. SocratesAI guides students without giving away direct answers, renders math via KaTeX, and tracks mastery milestones in real time.
+        </p>
+      </div>
+      <a href="/student-work.html?attachmentId=att-demo-socratic-01" class="btn btn-secondary btn-sm" style="width:100%;">
+        Open Student View ↗
+      </a>
+    </div>
+
+    <div class="action-card">
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
+          <span style="font-size:2rem;">📊</span>
+          <span class="badge badge-success">Grading Journey</span>
+        </div>
+        <h3 style="font-size:1.25rem; margin-bottom:8px;">3. Teacher Review & Gradebook</h3>
+        <p style="font-size:0.88rem; color:var(--text-muted); line-height:1.5; margin-bottom:16px;">
+          When reviewing student submissions, the AI generates a synthesis report, independence score, and flagged misconceptions. The teacher reviews and passes grades directly back to the Google Classroom gradebook.
+        </p>
+      </div>
+      <a href="/teacher-review.html?submissionId=sub-pavel-birulin-live" class="btn btn-secondary btn-sm" style="width:100%;">
+        Open Grading View ↗
+      </a>
+    </div>
+  </section>
+
+  <!-- Multi-Model LLM Providers Section -->
+  <section style="max-width:1100px; margin:0 auto 50px; padding:0 20px;">
+    <div class="glass-panel" style="padding:28px;">
+      <h3 style="font-size:1.25rem; margin-bottom:14px; display:flex; align-items:center; gap:10px;">
+        <span>🤖</span> Multi-LLM Provider Engine Status
+      </h3>
+      <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:20px;">
+        SocratesAI seamlessly connects with the top educational LLMs. Add your API keys to <code>.env</code> to activate live API endpoints, or use the built-in curriculum simulation mode.
+      </p>
+
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:16px;" id="modelsStatusList">
+        <div style="background:#f8f9fa; border:1px solid #dadce0; border-radius:10px; padding:18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <strong style="color:#1967d2;">Google Gemini</strong>
+            <span class="badge badge-blue">Classroom Native</span>
+          </div>
+          <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">
+            Gemini 3.1 Flash & 1.5 Pro. Ultra-fast multimodal reasoning, handwritten math & graph recognition.
+          </p>
+          <span style="font-size:0.75rem; color:#5f6368;">Key: <code>GEMINI_API_KEY</code></span>
+        </div>
+
+        <div style="background:#f8f9fa; border:1px solid #dadce0; border-radius:10px; padding:18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <strong style="color:#8430ce;">Anthropic Claude</strong>
+            <span class="badge badge-purple">Socratic Specialist</span>
+          </div>
+          <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">
+            Claude 3.5 Sonnet & Haiku. High restraint, empathetic tone, and superb step-by-step pedagogical questioning.
+          </p>
+          <span style="font-size:0.75rem; color:#5f6368;">Key: <code>ANTHROPIC_API_KEY</code></span>
+        </div>
+
+        <div style="background:#f8f9fa; border:1px solid #dadce0; border-radius:10px; padding:18px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <strong style="color:#137333;">OpenAI ChatGPT</strong>
+            <span class="badge badge-green">High Generalization</span>
+          </div>
+          <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:10px;">
+            GPT-4o & GPT-4o-mini. Versatile rubric scoring and automated draft feedback generator.
+          </p>
+          <span style="font-size:0.75rem; color:#5f6368;">Key: <code>OPENAI_API_KEY</code></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Curricula Covered -->
+  <section style="max-width:1100px; margin:0 auto 50px; padding:0 20px;">
+    <div class="glass-panel" style="padding:28px;">
+      <h3 style="font-size:1.25rem; margin-bottom:14px; display:flex; align-items:center; gap:10px;">
+        <span>🎓</span> Curricula Alignment & Subjects
+      </h3>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+        <div>
+          <h4 style="font-size:1rem; color:#60a5fa; margin-bottom:8px;">🇺🇸 United States High Schools</h4>
+          <ul style="font-size:0.88rem; color:var(--text-muted); line-height:1.8; padding-left:20px;">
+            <li><strong>Common Core Mathematics:</strong> Algebra I, Geometry, Algebra II / Trig, AP Calculus AB/BC, AP Statistics</li>
+            <li><strong>NGSS Science:</strong> High School Biology, Chemistry, Physics, Environmental Science</li>
+            <li><strong>Humanities:</strong> Common Core ELA 9–12, AP Literature, AP US History, AP US Government</li>
+          </ul>
+        </div>
+        <div>
+          <h4 style="font-size:1rem; color:#f87171; margin-bottom:8px;">🇨🇦 Canadian High Schools (Ontario & Western)</h4>
+          <ul style="font-size:0.88rem; color:var(--text-muted); line-height:1.8; padding-left:20px;">
+            <li><strong>Ontario OSS Mathematics:</strong> MTH1W, MPM2D, MCR3U (Functions), MCV4U (Calculus & Vectors), MHF4U</li>
+            <li><strong>Canadian Secondary Science:</strong> SNC2D, SCH3U/4U (Chemistry), SPH3U/4U (Physics), SBI3U/4U (Biology)</li>
+            <li><strong>Humanities:</strong> ENG4U (English), CHC2D (Canadian History since WWI), Indigenous Perspectives</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Deployment & Google Workspace Marketplace Guide -->
+  <section style="max-width:1100px; margin:0 auto 60px; padding:0 20px;">
+    <div class="glass-panel" style="padding:28px;">
+      <h3 style="font-size:1.25rem; margin-bottom:14px; display:flex; align-items:center; gap:10px;">
+        <span>🚀</span> Google Workspace Marketplace Publishing Steps
+      </h3>
+      <div style="display:flex; flex-direction:column; gap:12px; font-size:0.9rem; color:var(--text-muted);">
+        <div class="flow-step">
+          <strong style="color:#202124;">Step 1: Deploy Web Server with HTTPS</strong><br>
+          Deploy this application to any cloud host (Cloud Run, Render, Vercel, Railway, etc.). Google Classroom requires valid TLS 1.2+ HTTPS and the configured CSP <code>frame-ancestors 'self' https://classroom.google.com https://workspace.google.com;</code>.
+        </div>
+        <div class="flow-step">
+          <strong style="color:#202124;">Step 2: Google Cloud Console Configuration</strong><br>
+          Enable the <em>Google Classroom API</em> and <em>Google Workspace Marketplace SDK</em>. Create an OAuth 2.0 Web Client ID with your domain.
+        </div>
+        <div class="flow-step">
+          <strong style="color:#202124;">Step 3: Register Classroom Add-on Extension Points</strong><br>
+          In the Google Workspace Marketplace SDK configuration, fill in the URLs configured in <code>google-classroom-manifest.json</code>:
+          <code>/attachment-discovery.html</code>, <code>/student-work.html</code>, and <code>/teacher-review.html</code>.
+        </div>
+        <div class="flow-step">
+          <strong style="color:#202124;">Step 4: Domain Admin Install or Public Store Listing</strong><br>
+          School IT administrators can install the add-on domain-wide for all teachers and students via the Google Admin Console.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer style="text-align:center; padding:30px 20px; border-top:1px solid var(--border-subtle); font-size:0.8rem; color:var(--text-dim);">
+    SocratesAI • Google Classroom Add-on for High School Education • Powered by Gemini, Claude & ChatGPT
+  </footer>
+
+</body>
+</html>

@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SocratesAI — Mobile Camera Bridge</title>
+  <link rel="stylesheet" href="/css/theme.css?v=20261113b" />
+</head>
+<body style="background:#f8f9fa; color:#202124; padding:1rem;">
+  <div class="container" style="max-width:480px; margin:0 auto;">
+    <div class="glass-panel" style="padding:1.25rem; text-align:center; background:#ffffff; border:1px solid #dadce0; border-radius:12px;">
+      <div style="width:48px; height:48px; border-radius:12px; background:#e8f0fe; color:#1967d2; display:inline-flex; align-items:center; justify-content:center; font-size:1.5rem; margin-bottom:0.65rem;">
+        📷
+      </div>
+      <h2 style="font-size:1.18rem; color:#202124; margin-bottom:0.35rem;">SocratesAI Mobile Camera</h2>
+      <p id="bridgeSubtitle" style="font-size:0.84rem; color:#5f6368; margin-bottom:1.1rem; line-height:1.45;">
+        Take a photo of your handwritten sheet (formulas, graphs, or notes) to send directly to your Google Classroom session.
+      </p>
+
+      <!-- 1. Direct Native Camera Label + Transparent Input Overlay (Never blocked by iOS/Android gesture policies) -->
+      <label for="mobileCameraInput" id="takePhotoBtn" class="btn btn-primary" style="position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; width:100%; padding:0.9rem; font-size:0.96rem; font-weight:600; margin-bottom:0.6rem; cursor:pointer; user-select:none;">
+        <span>📸 Open Phone Camera &amp; Take Photo</span>
+        <input type="file" id="mobileCameraInput" accept="image/*" capture="environment" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:2;" />
+      </label>
+
+      <!-- 2. Secondary Row: In-Page Live Camera Viewfinder (WebRTC) + Photo Gallery Picker -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-bottom:0.75rem;">
+        <button type="button" id="startLiveCameraBtn" class="btn btn-secondary" style="padding:0.65rem 0.5rem; font-size:0.8rem; font-weight:600; color:#1967d2; border-color:#d2e3fc; background:#e8f0fe;">
+          🎥 Live Web Camera
+        </button>
+        <label for="mobileGalleryInput" id="chooseGalleryBtn" class="btn btn-secondary" style="position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; padding:0.65rem 0.5rem; font-size:0.8rem; font-weight:600; cursor:pointer; margin:0;">
+          <span>🖼️ Photo Library</span>
+          <input type="file" id="mobileGalleryInput" accept="image/*" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; z-index:2;" />
+        </label>
+      </div>
+
+      <!-- In-Page Live WebRTC Camera Viewfinder Box -->
+      <div id="liveCameraBox" style="display:none; margin-bottom:0.85rem; border:2px solid #1a73e8; border-radius:10px; padding:0.6rem; background:#000000;">
+        <video id="liveCameraVideo" autoplay playsinline muted style="width:100%; max-height:320px; border-radius:8px; background:#000; object-fit:cover;"></video>
+        <div style="display:flex; gap:0.5rem; margin-top:0.55rem;">
+          <button type="button" id="captureVideoFrameBtn" class="btn btn-primary" style="flex:1; padding:0.68rem; font-size:0.9rem; font-weight:700; background:#1e8e3e; border-color:#1e8e3e;">
+            📸 Snap Photo Now
+          </button>
+          <button type="button" id="flipCameraBtn" class="btn btn-secondary" style="padding:0.68rem 0.75rem; font-size:0.82rem; background:#ffffff;">
+            🔄 Flip
+          </button>
+          <button type="button" id="closeLiveCameraBtn" class="btn btn-secondary" style="padding:0.68rem 0.75rem; font-size:0.82rem; background:#ffffff; color:#c5221f;">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Preview & Upload Box -->
+      <div id="previewBox" style="display:none; margin-top:0.75rem; border:1px solid #dadce0; border-radius:8px; padding:0.75rem; background:#ffffff;">
+        <img id="previewImg" src="" alt="Preview" style="max-width:100%; max-height:280px; border-radius:6px; object-fit:contain; border:1px solid #f1f3f4;" />
+        <div style="margin-top:0.65rem;">
+          <input type="text" id="photoNoteInput" class="form-control" placeholder="Optional note (e.g., Step 2 graph &amp; domain check)..." style="font-size:0.85rem; margin-bottom:0.6rem;" />
+          <button type="button" id="sendPhotoBtn" class="btn btn-success" style="width:100%; padding:0.78rem; font-size:0.92rem; font-weight:600;">
+            🚀 Send Photo to Classroom Session
+          </button>
+        </div>
+      </div>
+
+      <div id="statusBanner" style="display:none; margin-top:0.85rem; padding:0.75rem; border-radius:8px; font-size:0.85rem; font-weight:500;"></div>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token') || 'demo-token';
+    const mode = params.get('mode') || 'student_solution';
+
+    const subtitle = document.getElementById('bridgeSubtitle');
+    if (mode === 'teacher_material') {
+      subtitle.textContent = 'Take a photo of your handwritten notes, textbook page, or board examples for Block 1 Material Studio.';
+    }
+
+    const cameraInput = document.getElementById('mobileCameraInput');
+    const galleryInput = document.getElementById('mobileGalleryInput');
+    const startLiveCameraBtn = document.getElementById('startLiveCameraBtn');
+    const liveCameraBox = document.getElementById('liveCameraBox');
+    const liveCameraVideo = document.getElementById('liveCameraVideo');
+    const captureVideoFrameBtn = document.getElementById('captureVideoFrameBtn');
+    const flipCameraBtn = document.getElementById('flipCameraBtn');
+    const closeLiveCameraBtn = document.getElementById('closeLiveCameraBtn');
+    const previewBox = document.getElementById('previewBox');
+    const previewImg = document.getElementById('previewImg');
+    const sendBtn = document.getElementById('sendPhotoBtn');
+    const statusBanner = document.getElementById('statusBanner');
+
+    let currentDataUrl = null;
+    let activeStream = null;
+    let currentFacingMode = 'environment';
+
+    function showStatus(msg, isError = false) {
+      statusBanner.style.display = 'block';
+      statusBanner.style.background = isError ? '#fce8e6' : '#e6f4ea';
+      statusBanner.style.color = isError ? '#c5221f' : '#137333';
+      statusBanner.style.border = isError ? '1px solid #fad2cf' : '1px solid #ceead6';
+      statusBanner.innerHTML = msg;
+    }
+
+    function stopLiveCamera() {
+      if (activeStream) {
+        activeStream.getTracks().forEach((t) => t.stop());
+        activeStream = null;
+      }
+      liveCameraVideo.srcObject = null;
+      liveCameraBox.style.display = 'none';
+    }
+
+    async function startLiveCamera(facing = 'environment') {
+      stopLiveCamera();
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        // Fallback to native file input if WebRTC getUserMedia is unavailable
+        cameraInput.click();
+        return;
+      }
+      try {
+        currentFacingMode = facing;
+        activeStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facing },
+            width: { ideal: 1600 },
+            height: { ideal: 1200 }
+          },
+          audio: false
+        });
+        liveCameraVideo.srcObject = activeStream;
+        liveCameraBox.style.display = 'block';
+        statusBanner.style.display = 'none';
+      } catch (err) {
+        // Retry with any available video device
+        try {
+          activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          liveCameraVideo.srcObject = activeStream;
+          liveCameraBox.style.display = 'block';
+          statusBanner.style.display = 'none';
+        } catch (fallbackErr) {
+          showStatus('⚠️ Please allow camera access in your browser or tap "📸 Open Phone Camera & Take Photo" above.', true);
+        }
+      }
+    }
+
+    startLiveCameraBtn.addEventListener('click', () => {
+      startLiveCamera(currentFacingMode);
+    });
+
+    flipCameraBtn.addEventListener('click', () => {
+      const nextFacing = currentFacingMode === 'environment' ? 'user' : 'environment';
+      startLiveCamera(nextFacing);
+    });
+
+    closeLiveCameraBtn.addEventListener('click', () => {
+      stopLiveCamera();
+    });
+
+    captureVideoFrameBtn.addEventListener('click', () => {
+      if (!liveCameraVideo.videoWidth) return;
+      const canvas = document.createElement('canvas');
+      const maxDim = 1400;
+      let w = liveCameraVideo.videoWidth;
+      let h = liveCameraVideo.videoHeight;
+      if (w > maxDim || h > maxDim) {
+        if (w > h) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+        else { w = Math.round(w * (maxDim / h)); h = maxDim; }
+      }
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(liveCameraVideo, 0, 0, w, h);
+      currentDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      previewImg.src = currentDataUrl;
+      previewBox.style.display = 'block';
+      sendBtn.disabled = false;
+      sendBtn.textContent = '🚀 Send Photo to Classroom Session';
+      stopLiveCamera();
+    });
+
+    function handleFileSelected(file) {
+      if (!file) return;
+      stopLiveCamera();
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 1400;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = Math.round(h * (maxDim / w)); w = maxDim; }
+            else { w = Math.round(w * (maxDim / h)); h = maxDim; }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          currentDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          previewImg.src = currentDataUrl;
+          previewBox.style.display = 'block';
+          sendBtn.disabled = false;
+          sendBtn.textContent = '🚀 Send Photo to Classroom Session';
+          statusBanner.style.display = 'none';
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    cameraInput.addEventListener('change', (e) => {
+      handleFileSelected(e.target.files && e.target.files[0]);
+    });
+
+    galleryInput.addEventListener('change', (e) => {
+      handleFileSelected(e.target.files && e.target.files[0]);
+    });
+
+    sendBtn.addEventListener('click', async () => {
+      if (!currentDataUrl) return;
+      sendBtn.disabled = true;
+      sendBtn.textContent = '⏳ Uploading to Classroom...';
+      try {
+        const res = await fetch(`/api/mobile-bridge/${encodeURIComponent(token)}/upload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            mimeType: 'image/jpeg',
+            data: currentDataUrl,
+            note: document.getElementById('photoNoteInput').value.trim()
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showStatus('✅ Photo received! It is now visible on your main screen. You can take another page photo if needed.', false);
+          sendBtn.textContent = '✅ Sent! Take Another Photo above';
+        } else {
+          throw new Error(data.error || 'Upload failed');
+        }
+      } catch (err) {
+        showStatus('❌ Error: ' + err.message, true);
+        sendBtn.disabled = false;
+        sendBtn.textContent = '🚀 Retry Send Photo';
+      }
+    });
+  </script>
+</body>
+</html>

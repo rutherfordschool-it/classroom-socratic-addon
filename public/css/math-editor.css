@@ -1,0 +1,173 @@
+/* ========================================================
+   MATH WYSIWYG EDITOR COMPONENT STYLES (Google Classroom Light)
+   ======================================================== */
+.mte-wrap {
+  width: 100%;
+  margin-bottom: 4px;
+}
+
+.mte-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+
+.mte-btn {
+  background: #f1f3f4;
+  color: #3c4043;
+  border: 1px solid #dadce0;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.mte-btn:hover {
+  background: #e8f0fe;
+  color: #1967d2;
+  border-color: #1a73e8;
+}
+
+.mte-btn.main {
+  background: #1a73e8;
+  color: #ffffff;
+  border-color: #1a73e8;
+}
+
+.mte-btn.main:hover {
+  background: #1557b0;
+  color: #ffffff;
+}
+
+.mte {
+  min-height: 88px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
+  overflow-x: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  line-height: 1.9;
+  outline: none;
+  font-size: 0.95rem;
+  color: #202124;
+  cursor: text;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.mte:focus-within {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15);
+}
+
+.mte.small {
+  min-height: 44px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  line-height: 1.75;
+}
+
+.mte[data-empty="true"]::before {
+  content: attr(data-placeholder);
+  color: #80868b;
+  pointer-events: none;
+}
+
+/* Inline math block inside the contenteditable */
+.math-inline {
+  display: inline-block;
+  vertical-align: middle;
+  margin: 0 1px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.math-inline math-field {
+  display: inline-block !important;
+  font-size: 1.04rem;
+  min-width: 16px;
+  max-width: 100%;
+  overflow-x: auto;
+  padding: 0 4px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: rgba(26, 115, 232, 0.04);
+  color: #202124;
+  outline: none;
+  --caret-color: #1a73e8;
+  --selection-background-color: rgba(26, 115, 232, 0.2);
+  --placeholder-color: #1a73e8;
+  --smart-fence-color: #5f6368;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.math-inline math-field:hover {
+  background: rgba(26, 115, 232, 0.09);
+}
+
+.math-inline math-field:focus-within {
+  background: #e8f0fe;
+  border-color: #1a73e8;
+}
+
+.math-inline math-field::part(virtual-keyboard-toggle),
+.math-inline math-field::part(menu-toggle) {
+  display: none !important;
+}
+
+.math-inline math-field::part(content) {
+  padding: 0 !important;
+}
+
+/* Standalone math field for single formulas (e.g. Target Answer) */
+math-field.standalone-math {
+  display: block !important;
+  width: 100%;
+  font-size: 1.1rem;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #202124;
+  border: 1px solid #dadce0;
+  outline: none;
+  --caret-color: #1a73e8;
+  --selection-background-color: rgba(26, 115, 232, 0.2);
+  --placeholder-color: #80868b;
+  transition: all 0.2s ease;
+}
+
+math-field.standalone-math:focus-within {
+  border-color: #1a73e8;
+  box-shadow: 0 0 0 3px rgba(26, 115, 232, 0.15);
+}
+
+math-field.standalone-math::part(menu-toggle) {
+  display: none !important;
+}
+
+math-field.standalone-math::part(virtual-keyboard-toggle) {
+  color: #1a73e8;
+}
+
+/* WYSIWYG Rendered Math Pills in Student Preview & Reference Cards */
+.wysiwyg-math-block .katex,
+#milestoneList .katex,
+#referenceMaterialContent .katex,
+#chatMessages .katex {
+  background: rgba(26, 115, 232, 0.06);
+  border-radius: 4px;
+  padding: 1px 5px;
+  margin: 0 1px;
+  color: #174ea6;
+}
+

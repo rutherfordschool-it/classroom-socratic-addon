@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SocratesAI — Teacher Grading, Telemetry &amp; Cohort Review (Google Classroom)</title>
+  <script>
+    (function () {
+      try {
+        if (window.self !== window.top && !location.search.includes('stayInIframe=1') && !location.search.includes('fullWindow=1')) {
+          document.documentElement.classList.add('socrates-iframe-bridge-mode');
+          var style = document.createElement('style');
+          style.id = 'socratesIframeMaskStyle';
+          style.textContent = 'html.socrates-iframe-bridge-mode .app-header, html.socrates-iframe-bridge-mode main.container { display: none !important; } html.socrates-iframe-bridge-mode body { background: #f8f9fa !important; margin: 0 !important; overflow: hidden !important; }';
+          document.head.appendChild(style);
+          var u = new URL(window.location.href);
+          u.searchParams.set('fullWindow', '1');
+          var w = window.open(u.toString(), '_blank');
+          if (w) {
+            window.__socratesAutoOpenedWindow = w;
+            try { w.focus(); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/css/theme.css?v=20261113b" />
+  <link rel="stylesheet" href="/css/components.css?v=20261113b" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+</head>
+<body style="background:#f8f9fa; color:#202124;">
+  <!-- Google Classroom Light App Header -->
+  <header class="app-header" style="background:#ffffff; border-bottom:1px solid #dadce0;">
+    <div class="brand-logo">
+      <div class="brand-icon">🏛️</div>
+      <div>
+        <div class="brand-title" style="color:#202124;">SocratesAI <span class="brand-subtitle" style="color:#5f6368;">Teacher Telemetry, Cohorts &amp; Gradebook</span></div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.65rem; flex-wrap:wrap;">
+      <div style="display:flex; align-items:center; gap:0.4rem;">
+        <label for="studentSubmissionSelect" style="font-size:0.78rem; color:#5f6368; font-weight:600;">Student:</label>
+        <select id="studentSubmissionSelect" class="form-select" style="width:auto; min-width:240px; padding:0.35rem 2rem 0.35rem 0.65rem; font-size:0.82rem;">
+          <option value="">No student submissions yet</option>
+        </select>
+      </div>
+      <span id="submissionStatusBadge" class="badge badge-blue">No Submissions Yet</span>
+      <button type="button" id="clearSubmissionsBtn" class="btn btn-secondary" style="padding:0.35rem 0.7rem; font-size:0.76rem; color:#c5221f; border-color:#fad2cf;" title="Clear test or old student submissions">
+        🗑️ Clear Results
+      </button>
+      <a href="/attachment-discovery.html" class="btn btn-secondary" style="padding:0.38rem 0.8rem; font-size:0.78rem;">
+        ⚙️ Activity Studio
+      </a>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:1.25rem; padding-bottom:3rem;">
+    <!-- =====================================================================
+         POINT 7a & 7b: Automatic Teacher Prep Telemetry + Class Cohort Grouping (A / B / C)
+         ===================================================================== -->
+    <section class="glass-panel" style="padding:1.25rem; margin-bottom:1.25rem; background:#ffffff; border:1px solid #dadce0;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:1rem; margin-bottom:1rem; padding-bottom:0.85rem; border-bottom:1px solid #dadce0;">
+        <div>
+          <span class="badge badge-blue" style="margin-bottom:0.25rem;">POINT 7 • AUTOMATIC TELEMETRY &amp; CLASS COHORT GROUPING</span>
+          <h2 style="font-size:1.12rem; color:#202124;">Student Performance Cohorts (Groups A / B / C) &amp; Teacher Preparation Metrics</h2>
+          <p style="font-size:0.82rem; color:#5f6368;">
+            Students are automatically grouped by mastery, active time spent, mistakes, and repetitions. Click any student card to inspect their Socratic dialogue and handwritten work.
+          </p>
+        </div>
+
+        <!-- Point 7b: Teacher Preparation Time Telemetry Box -->
+        <div style="display:flex; gap:0.75rem; flex-wrap:wrap; padding:0.65rem 0.95rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0;">
+          <div>
+            <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; color:#5f6368;">⏱️ Material Prep (Block 1)</div>
+            <div id="teacherMatPrepMetric" style="font-size:0.95rem; font-weight:700; color:#1967d2;">00m 00s</div>
+          </div>
+          <div style="border-left:1px solid #dadce0; padding-left:0.75rem;">
+            <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; color:#5f6368;">🧭 Lesson Plan Prep (Block 2)</div>
+            <div id="teacherPlanPrepMetric" style="font-size:0.95rem; font-weight:700; color:#137333;">00m 00s</div>
+          </div>
+          <div style="border-left:1px solid #dadce0; padding-left:0.75rem;">
+            <div style="font-size:0.7rem; font-weight:700; text-transform:uppercase; color:#5f6368;">∑ Total Teacher Prep</div>
+            <div id="teacherTotalPrepMetric" style="font-size:0.95rem; font-weight:700; color:#202124;">00m 00s</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Automatic Student Cohorts Grid (Group C, Group B, Group A) -->
+      <div class="grid-3" id="cohortGroupsGrid" style="gap:1rem;">
+        <!-- Populated dynamically by review.js -->
+      </div>
+    </section>
+
+    <!-- =====================================================================
+         Selected Student Detailed Review & Grade Passback
+         ===================================================================== -->
+    <div class="grid-2" style="grid-template-columns: 1.05fr 1fr; align-items:start;">
+      <!-- Left Column: Selected Student Telemetry + AI Socratic Assessment + Grade Passback -->
+      <div style="display:flex; flex-direction:column; gap:1.25rem;">
+        <div class="glass-panel" style="padding:1.35rem; background:#ffffff; border:1px solid #dadce0;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem; gap:0.75rem;">
+            <div>
+              <span class="badge badge-blue" style="margin-bottom:0.35rem;">INDIVIDUAL STUDENT REPORT</span>
+              <h2 id="studentNameHeader" style="font-size:1.18rem; color:#202124;">No Student Submissions Yet</h2>
+              <p id="activityTitleSub" style="font-size:0.84rem; color:#5f6368;">Waiting for students to start the activity</p>
+            </div>
+            <div class="score-dial" style="border-color:#dadce0; background:#f8f9fa;" id="scoreDialBox">
+              <div class="score-value" id="suggestedScoreDial" style="color:#5f6368;">—</div>
+              <div class="score-label" style="color:#5f6368;">AI Score</div>
+            </div>
+          </div>
+
+          <!-- Point 7a: 6 Detailed Student Performance Metrics -->
+          <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.6rem; margin-bottom:1rem;">
+            <div style="padding:0.6rem 0.75rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0;">
+              <div style="font-size:0.7rem; color:#5f6368; font-weight:600;">🧭 Level Route</div>
+              <div id="metricLevelRoute" style="font-size:0.88rem; font-weight:700; color:#1967d2;">—</div>
+            </div>
+            <div style="padding:0.6rem 0.75rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0;">
+              <div style="font-size:0.7rem; color:#5f6368; font-weight:600;">⏱️ Time Spent</div>
+              <div id="metricActiveTime" style="font-size:0.88rem; font-weight:700; color:#202124;">00m 00s</div>
+            </div>
+            <div style="padding:0.6rem 0.75rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0;">
+              <div style="font-size:0.7rem; color:#5f6368; font-weight:600;">🔄 Repetitions Solved</div>
+              <div id="metricRepetitions" style="font-size:0.88rem; font-weight:700; color:#137333;">0 problem(s)</div>
+            </div>
+            <div style="padding:0.6rem 0.75rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0;">
+              <div style="font-size:0.7rem; color:#5f6368; font-weight:600;">⚠️ Mistakes Made</div>
+              <div id="metricMistakes" style="font-size:0.88rem; font-weight:700; color:#c5221f;">0</div>
+            </div>
+            <div style="padding:0.6rem 0.75rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0;">
+              <div style="font-size:0.7rem; color:#5f6368; font-weight:600;">💡 Hints Used</div>
+              <div id="metricHints" style="font-size:0.88rem; font-weight:700; color:#b06000;">0</div>
+            </div>
+            <div style="padding:0.6rem 0.75rem; border-radius:8px; background:#f8f9fa; border:1px solid #dadce0;">
+              <div style="font-size:0.7rem; color:#5f6368; font-weight:600;">📷 Handwritten Photos</div>
+              <div id="metricPhotos" style="font-size:0.88rem; font-weight:700; color:#1967d2;">0 sheet(s)</div>
+            </div>
+          </div>
+
+          <div class="rubric-card" style="margin-bottom:0.85rem; background:#f8f9fa; border:1px solid #dadce0;">
+            <div style="font-size:0.75rem; font-weight:700; text-transform:uppercase; color:#1967d2; margin-bottom:0.35rem;">
+              AI Executive Summary of Student Reasoning
+            </div>
+            <p id="aiSummaryText" style="font-size:0.86rem; color:#5f6368; line-height:1.5;">
+              No student has attempted or turned in this assignment yet. Student results, mastery scores, Socratic dialogue transcripts, and handwritten work will appear here automatically once students begin working.
+            </p>
+          </div>
+
+          <div class="grid-2" style="gap:0.85rem; margin-bottom:0.85rem;">
+            <div class="rubric-card" style="background:#e6f4ea; border:1px solid #ceead6;">
+              <div style="font-size:0.74rem; font-weight:700; text-transform:uppercase; color:#137333; margin-bottom:0.4rem;">
+                ✅ Milestones Achieved
+              </div>
+              <ul id="achievedList" style="padding-left:1.1rem; font-size:0.8rem; color:#137333; display:flex; flex-direction:column; gap:0.3rem; margin:0;">
+                <li style="color:#5f6368; list-style:none; margin-left:-1rem;">No milestones recorded yet.</li>
+              </ul>
+            </div>
+
+            <div class="rubric-card" style="background:#fef7e0; border:1px solid #fde293;">
+              <div style="font-size:0.74rem; font-weight:700; text-transform:uppercase; color:#b06000; margin-bottom:0.4rem;">
+                ⚠️ Identified Misconceptions / Gaps
+              </div>
+              <ul id="misconceptionsList" style="padding-left:1.1rem; font-size:0.8rem; color:#b06000; display:flex; flex-direction:column; gap:0.3rem; margin:0;">
+                <li style="color:#5f6368; list-style:none; margin-left:-1rem;">No misconceptions recorded yet.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:0.65rem 0.9rem; border-radius:8px; background:#e8f0fe; border:1px solid #d2e3fc;">
+            <span style="font-size:0.82rem; font-weight:600; color:#1967d2;">Socratic Independence Score</span>
+            <span id="independenceScore" style="font-size:0.9rem; font-weight:700; color:#1967d2;">— / 100</span>
+          </div>
+        </div>
+
+        <!-- Grade Passback Card -->
+        <div class="glass-panel" style="padding:1.35rem; background:#ffffff; border:1px solid #dadce0;">
+          <h3 style="font-size:1.02rem; margin-bottom:0.25rem; color:#202124;">📋 Google Classroom Grade Passback</h3>
+          <p style="font-size:0.8rem; color:#5f6368; margin-bottom:1rem;">
+            Approve or adjust the suggested grade to sync directly with the Google Classroom gradebook.
+          </p>
+
+          <form id="gradePassbackForm">
+            <div class="grid-2" style="margin-bottom:0.85rem;">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="assignedGradeInput">Final Grade (out of 100)</label>
+                <input type="number" id="assignedGradeInput" class="form-control" min="0" max="100" value="" placeholder="—" required />
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="reEvaluateBtn">Re-Evaluate Transcript</label>
+                <button type="button" id="reEvaluateBtn" class="btn btn-secondary" style="width:100%;">
+                  🔄 Refresh AI Assessment
+                </button>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:1rem;">
+              <label class="form-label" for="teacherFeedbackInput">Teacher Feedback Comment for Student</label>
+              <textarea id="teacherFeedbackInput" class="form-textarea" style="min-height:74px;" placeholder="Add feedback for the student..."></textarea>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span id="passbackStatusText" style="font-size:0.8rem; color:#137333; font-weight:600;"></span>
+              <button type="submit" id="passbackBtn" class="btn btn-success">
+                🚀 Sync Grade to Google Classroom
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Right Column: Full Socratic Dialogue & Handwritten Photos Transcript -->
+      <div class="glass-panel chat-wrapper" style="height:760px; background:#ffffff; border:1px solid #dadce0;">
+        <div class="chat-header" style="background:#f8f9fa; border-bottom:1px solid #dadce0;">
+          <div>
+            <div style="font-weight:600; font-size:0.95rem; color:#202124;">Socratic Dialogue &amp; Handwritten Solution Transcript</div>
+            <div style="font-size:0.75rem; color:#5f6368;">Complete step-by-step history of formulas, reasoning, and attached notebook photos</div>
+          </div>
+          <span id="turnCountBadge" class="badge badge-blue">0 messages</span>
+        </div>
+
+        <div class="chat-messages" id="transcriptContainer" style="background:#ffffff;">
+          <div style="padding:2rem 1.5rem; text-align:center; color:#5f6368; font-size:0.88rem;">
+            No student dialogue recorded yet. Once a student answers a Socratic question or uploads a handwritten photo, their full transcript will appear here.
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script type="module" src="/js/review.js?v=20261113i"></script>
+</body>
+</html>

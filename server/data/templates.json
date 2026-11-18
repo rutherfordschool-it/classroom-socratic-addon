@@ -1,0 +1,111 @@
+[
+  {
+    "id": "tpl-log-laws-mhf4u",
+    "title": "Product, Quotient, and Power Laws of Logarithms (MHF4U)",
+    "curriculum": "canada",
+    "subject": "Mathematics",
+    "subjectId": "ca-ontario-math",
+    "courseId": "ca-mhf4u",
+    "topic": "Laws of Logarithms (Product, Quotient, Power)",
+    "gradeLevel": "Grade 12",
+    "socraticStyle": "guided_scaffold",
+    "currentLevel": "B",
+    "learningGoal": "Master applying the Product ($\\log_b(xy) = \\log_b(x) + \\log_b(y)$), Quotient ($\\log_b(x/y) = \\log_b(x) - \\log_b(y)$), and Power ($\\log_b(x^k) = k\\log_b(x)$) laws of logarithms to simplify expressions and solve equations.",
+    "prompt": "Simplify into a single numerical value: $2\\log_3(6) - \\log_3(4)$. Take a look at the first term. What rule allows us to absorb that multiplier 2 into an exponent?",
+    "initialHint": "Remember the Power Law: $k \\cdot \\log_b(M) = \\log_b(M^k)$. Always absorb coefficients before subtracting!",
+    "targetMilestones": [
+      "Step 1 (Diagnostic Check): Verify basic logarithm definition ($b^y = x \\Longleftrightarrow \\log_b(x) = y$)",
+      "Step 2 (Power Law): Absorb scalar coefficients into exponents ($2\\log_3(6) = \\log_3(6^2) = \\log_3(36)$)",
+      "Step 3 (Quotient Law): Combine same-base logarithms ($\\log_3(36) - \\log_3(4) = \\log_3(36/4) = \\log_3(9) = 2$)",
+      "Step 4 (Mastery Verification): Solve parallel problem and verify domain ($x > 0$)"
+    ],
+    "courseMaterialsSource": "Google Classroom Stream (Igor RPS — Product and Quotient Laws.pdf)",
+    "courseMaterials": "Reference Sheet: Product, Quotient, and Power Laws of Logarithms (MHF4U Grade 12)\n\n1. THE PRODUCT LAW OF LOGARITHMS:\n   $\\log_b(xy) = \\log_b(x) + \\log_b(y)$  (for $b > 0, b \\neq 1, x > 0, y > 0$)\n   Example: $\\log_2(8 \\cdot 4) = \\log_2(8) + \\log_2(4) = 3 + 2 = 5$.\n\n2. THE QUOTIENT LAW OF LOGARITHMS:\n   $\\log_b(x / y) = \\log_b(x) - \\log_b(y)$  (for $b > 0, b \\neq 1, x > 0, y > 0$)\n   Example: $\\log_3(36 / 4) = \\log_3(36) - \\log_3(4) = \\log_3(9) = 2$.\n\n3. THE POWER LAW OF LOGARITHMS:\n   $\\log_b(x^k) = k \\cdot \\log_b(x)$  (for $b > 0, b \\neq 1, x > 0$)\n   Example: $2 \\cdot \\log_3(6) = \\log_3(6^2) = \\log_3(36)$.\n\nCRITICAL RULE FOR MULTI-STEP SIMPLIFICATIONS:\n   When simplifying expressions like $2\\log_3(6) - \\log_3(4)$, you MUST apply the Power Law first to absorb numerical coefficients into exponents, BEFORE combining terms using the Quotient or Product Law."
+  },
+  {
+    "id": "tpl-quadratics",
+    "title": "Deriving the Quadratic Formula & Vertex Form",
+    "curriculum": "us",
+    "subject": "Mathematics",
+    "subjectId": "us-math",
+    "courseId": "us-alg1",
+    "topic": "Quadratic Functions & Factoring",
+    "gradeLevel": "Grade 10",
+    "socraticStyle": "strict_socratic",
+    "learningGoal": "Uncover how completing the square on $ax^2 + bx + c = 0$ leads to the quadratic formula $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$, and understand why the discriminant $\\Delta = b^2 - 4ac$ determines the number of roots.",
+    "prompt": "Let's investigate the quadratic equation $2x^2 + 8x - 10 = 0$. Instead of using a memorized formula right away, how could we rewrite this so that $x$ only appears once?",
+    "initialHint": "Think about dividing the entire equation by the leading coefficient first to make the coefficient of $x^2$ equal to 1.",
+    "targetMilestones": [
+      "Step 1: Divide both sides by the leading coefficient ($a \\neq 0$)",
+      "Step 2: Identify the constant term needed to complete the square ($(b/2a)^2$)",
+      "Step 3: Factor the perfect square trinomial into $(x + \\frac{b}{2a})^2 = \\frac{b^2 - 4ac}{4a^2}$",
+      "Step 4: Interpret the discriminant ($\\Delta = b^2 - 4ac$) to classify real vs. complex roots"
+    ],
+    "courseMaterialsSource": "OpenStax Algebra & Trigonometry 2e — Chapter 2: Quadratic Equations",
+    "courseMaterials": "TEXTBOOK EXCERPT: Completing the Square & Quadratic Identities\n- Standard Form of a Quadratic: $ax^2 + bx + c = 0$ (where $a \\neq 0$).\n- The Perfect Square Trinomial Rule: $(x + h)^2 = x^2 + 2hx + h^2$\n- Key Technique: For $x^2 + Bx$, adding $(B/2)^2$ creates the factored binomial square $(x + B/2)^2$.\n- The Quadratic Formula Derivation:\n  1. Divide through by $a$: $x^2 + \\frac{b}{a}x + \\frac{c}{a} = 0$\n  2. Add $(\\frac{b}{2a})^2$ to both sides: $(x + \\frac{b}{2a})^2 = \\frac{b^2 - 4ac}{4a^2}$\n  3. Solve for $x$: $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$\n- Discriminant Definition: $\\Delta = b^2 - 4ac$."
+  },
+  {
+    "id": "tpl-stoichiometry",
+    "title": "Limiting Reactants & Stoichiometric Ratios",
+    "curriculum": "canada",
+    "subject": "Chemistry",
+    "subjectId": "ca-science",
+    "courseId": "ca-sch3u-4u",
+    "topic": "Chemical Quantities & The Mole Concept",
+    "gradeLevel": "Grade 11",
+    "socraticStyle": "guided_scaffold",
+    "learningGoal": "Determine the limiting reactant in the synthesis of water ($2\\text{H}_2 + \\text{O}_2 \\rightarrow 2\\text{H}_2\\text{O}$) given unequal initial masses, understanding the role of molar mass ($n = \\frac{m}{M}$).",
+    "prompt": "We have $10.0\\text{ g}$ of hydrogen gas ($\\text{H}_2$) reacting with $64.0\\text{ g}$ of oxygen gas ($\\text{O}_2$) according to $2\\text{H}_2 + \\text{O}_2 \\rightarrow 2\\text{H}_2\\text{O}$. A student guesses that hydrogen is the limiting reactant because $10.0\\text{ g} < 64.0\\text{ g}$. How can we test this using moles?",
+    "initialHint": "In chemical reactions, do molecules react based on their mass in grams, or based on the number of particles (moles $n = m/M$)?",
+    "targetMilestones": [
+      "Step 1 (Diagnostic): Convert grams of $\\text{H}_2$ and $\\text{O}_2$ to moles using $n = \\frac{m}{M}$",
+      "Step 2 (Mole Ratio): Compare available moles to the balanced stoichiometric ratio ($2\\text{ mol H}_2 : 1\\text{ mol O}_2$)",
+      "Step 3 (Limiting Reactant): Identify the limiting reactant ($\\text{O}_2$) vs. excess reactant ($\\text{H}_2$)",
+      "Step 4 (Theoretical Yield): Calculate the theoretical yield of $\\text{H}_2\\text{O}$ in grams ($m = n \\cdot M$)"
+    ],
+    "courseMaterialsSource": "OpenStax Chemistry 2e — Chapter 4: Stoichiometry & Limiting Reactants",
+    "courseMaterials": "TEXTBOOK EXCERPT: Reaction Stoichiometry & Limiting Reactants (SCH3U)\n- Fundamental Principle: Chemical equations describe reactions on a molar basis ($n = \\frac{m}{M}$), NOT directly on a mass basis.\n- Balanced Synthesis of Water: $2\\text{H}_2(g) + \\text{O}_2(g) \\rightarrow 2\\text{H}_2\\text{O}(g)$\n- Stoichiometric Mole Ratio: $2\\text{ mol}$ of $\\text{H}_2$ react with $1\\text{ mol}$ of $\\text{O}_2$ to produce $2\\text{ mol}$ of $\\text{H}_2\\text{O}$.\n- Molar Masses:\n  * $M(\\text{H}_2) = 2.016\\text{ g/mol}$\n  * $M(\\text{O}_2) = 32.00\\text{ g/mol}$\n  * $M(\\text{H}_2\\text{O}) = 18.015\\text{ g/mol}$"
+  },
+  {
+    "id": "tpl-photosynthesis",
+    "title": "Light Reactions vs. Calvin Cycle Mechanics",
+    "curriculum": "us",
+    "subject": "Biology",
+    "subjectId": "us-science",
+    "courseId": "us-bio",
+    "topic": "Cellular Energetics (Photosynthesis & Cellular Respiration)",
+    "gradeLevel": "Grade 11",
+    "socraticStyle": "strict_socratic",
+    "learningGoal": "Explain how $\\text{ATP}$ and $\\text{NADPH}$ generated in the thylakoid membrane drive carbon fixation ($6\\text{CO}_2 + 6\\text{H}_2\\text{O} \\rightarrow \\text{C}_6\\text{H}_{12}\\text{O}_6 + 6\\text{O}_2$) in the stroma, and predict what happens if light is removed.",
+    "prompt": "Imagine an aquatic plant has been photosynthesizing under bright light. Suddenly, we turn off the light source. A student claims: 'The Calvin cycle will continue indefinitely because it is the light-independent reaction!' What is the flaw in this statement?",
+    "initialHint": "Recall what the light-dependent reactions produce ($\\text{ATP}$ and $\\text{NADPH}$) that the Calvin cycle consumes.",
+    "targetMilestones": [
+      "Step 1: Identify $\\text{ATP}$ and $\\text{NADPH}$ as the energy carriers linking both stages",
+      "Step 2: Explain that the Calvin cycle requires $\\text{ATP}$ and $\\text{NADPH}$ to reduce $\\text{CO}_2$ into G3P",
+      "Step 3: Predict that the Calvin cycle stops shortly after light is removed due to $\\text{ATP}/\\text{NADPH}$ depletion"
+    ],
+    "courseMaterialsSource": "OpenStax Biology 2e — Chapter 8: Photosynthesis",
+    "courseMaterials": "TEXTBOOK EXCERPT: Light Reactions & The Calvin-Benson Cycle\n- Overall Equation: $6\\text{CO}_2 + 6\\text{H}_2\\text{O} \\xrightarrow{\\text{light}} \\text{C}_6\\text{H}_{12}\\text{O}_6 + 6\\text{O}_2$\n- Photolysis of Water: $2\\text{H}_2\\text{O} \\rightarrow 4\\text{H}^+ + 4e^- + \\text{O}_2$\n- Critical Dependency: The Calvin cycle relies on a continuous supply of $\\text{ATP}$ and $\\text{NADPH}$ from the light-dependent reactions."
+  },
+  {
+    "id": "tpl-vectors-3d",
+    "title": "Lines & Intersecting Planes in 3-Space",
+    "curriculum": "canada",
+    "subject": "Mathematics",
+    "subjectId": "ca-ontario-math",
+    "courseId": "ca-mcv4u",
+    "topic": "Equations of Lines & Planes in 3-Space",
+    "gradeLevel": "Grade 12",
+    "socraticStyle": "guided_scaffold",
+    "learningGoal": "Determine whether two lines in $\\mathbb{R}^3$ ($\\vec{r} = \\vec{r}_0 + t\\vec{d}$) intersect, are parallel, or are skew by analyzing their direction vectors.",
+    "prompt": "Consider two lines in $\\mathbb{R}^3$: $L_1: \\vec{r} = (1, 2, 3) + t(2, -1, 4)$ and $L_2: \\vec{r} = (3, 1, 7) + s(-4, 2, -8)$. What should you inspect first about the direction vectors $\\vec{d}_1 = (2, -1, 4)$ and $\\vec{d}_2 = (-4, 2, -8)$?",
+    "initialHint": "Is there a scalar factor $k$ such that $\\vec{d}_2 = k \\vec{d}_1$?",
+    "targetMilestones": [
+      "Step 1: Recognize that the direction vectors are scalar multiples ($\\vec{d}_2 = -2\\vec{d}_1$)",
+      "Step 2: Conclude the lines are either parallel and distinct, or coincident",
+      "Step 3: Test a point from $L_1$ in $L_2$ to determine whether they are identical or distinct parallel lines"
+    ],
+    "courseMaterialsSource": "Ontario Curriculum MCV4U — Chapter 2: Vectors in Space",
+    "courseMaterials": "TEXTBOOK EXCERPT: Lines and Planes in 3-Dimensional Space\n- Vector Equation of a Line in $\\mathbb{R}^3$: $\\vec{r} = \\vec{r}_0 + t\\vec{d}$\n- Collinear Direction Vectors: Two lines with direction vectors $\\vec{d}_1$ and $\\vec{d}_2$ are parallel if and only if $\\vec{d}_2 = k\\vec{d}_1$ for some nonzero scalar $k$."
+  }
+]

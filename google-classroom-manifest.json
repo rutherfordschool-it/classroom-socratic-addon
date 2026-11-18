@@ -1,0 +1,33 @@
+{
+  "timeZone": "America/New_York",
+  "dependencies": {
+    "enabledAdvancedServices": []
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/classroom.addons.teacher",
+    "https://www.googleapis.com/auth/classroom.addons.student",
+    "https://www.googleapis.com/auth/classroom.courses.readonly",
+    "https://www.googleapis.com/auth/classroom.coursework.students",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/userinfo.profile",
+    "openid"
+  ],
+  "addOns": {
+    "common": {
+      "name": "SocratesAI - Socratic High School Tutor",
+      "logoUrl": "https://socrates-classroom-addon-243371665093.us-central1.run.app/icons/socrates-logo.png",
+      "layoutProperties": {
+        "primaryColor": "#4f46e5",
+        "secondaryColor": "#06b6d4"
+      }
+    },
+    "classroom": {
+      "name": "SocratesAI Socratic Learning Tutor",
+      "iconUrl": "https://socrates-classroom-addon-243371665093.us-central1.run.app/icons/icon-48.png",
+      "attachmentDiscoveryUri": "https://socrates-classroom-addon-243371665093.us-central1.run.app/attachment-discovery.html",
+      "attachmentStudentWorkUri": "https://socrates-classroom-addon-243371665093.us-central1.run.app/student-work.html",
+      "attachmentTeacherWorkUri": "https://socrates-classroom-addon-243371665093.us-central1.run.app/teacher-review.html",
+      "attachmentTeacherViewUri": "https://socrates-classroom-addon-243371665093.us-central1.run.app/teacher-review.html"
+    }
+  }
+}

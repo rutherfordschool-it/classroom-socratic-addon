@@ -1,0 +1,349 @@
+/* ========================================================
+   GOOGLE CLASSROOM SIMULATOR & IFRAME HARNESS
+   ======================================================== */
+.classroom-mock-header {
+  background: #ffffff;
+  color: #3c4043;
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #dadce0;
+  font-family: 'Roboto', 'Inter', sans-serif;
+  box-shadow: 0 1px 2px 0 rgba(60,64,67,0.3), 0 1px 3px 1px rgba(60,64,67,0.15);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.classroom-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.classroom-logo-icon {
+  width: 32px;
+  height: 32px;
+  background: #1e8e3e;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.classroom-title-area h3 {
+  font-size: 1.05rem;
+  color: #1f1f1f;
+  margin: 0;
+}
+
+.classroom-title-area p {
+  font-size: 0.78rem;
+  color: #5f6368;
+  margin: 0;
+}
+
+.classroom-nav-tabs {
+  display: flex;
+  gap: 20px;
+}
+
+.nav-tab-item {
+  padding: 8px 12px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #5f6368;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nav-tab-item.active {
+  color: #1e8e3e;
+  border-bottom-color: #1e8e3e;
+}
+
+/* Simulator Role & Journey Selector Bar */
+.simulator-control-bar {
+  background: #111827;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.journey-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.journey-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e5e7eb;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: var(--transition);
+}
+
+.journey-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.journey-btn.active {
+  background: var(--primary-gradient);
+  border-color: transparent;
+  color: #ffffff;
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+}
+
+.query-params-pill {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Simulated Iframe Viewport Container */
+.iframe-viewport-container {
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: calc(100vh - 120px);
+}
+
+.classroom-iframe-mock {
+  width: 100%;
+  max-width: 100%;
+  height: calc(100vh - 120px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: var(--bg-main);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.classroom-iframe-mock iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+/* ========================================================
+   TAB VIEWS: STREAM, PEOPLE, GRADES
+   ======================================================== */
+.tab-view {
+  display: none;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px;
+}
+
+.tab-view.active {
+  display: block;
+}
+
+/* Stream Tab */
+.stream-banner {
+  background: linear-gradient(135deg, #1e8e3e, #137333);
+  border-radius: 12px;
+  padding: 32px 28px;
+  color: #ffffff;
+  margin-bottom: 24px;
+  position: relative;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+
+.stream-banner h1 {
+  font-size: 1.85rem;
+  margin: 0 0 6px 0;
+  font-weight: 700;
+}
+
+.stream-banner p {
+  font-size: 0.95rem;
+  color: #e6f4ea;
+  margin: 0 0 16px 0;
+}
+
+.stream-banner-meta {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  font-size: 0.82rem;
+  color: #ceead6;
+  flex-wrap: wrap;
+}
+
+.stream-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 860px) {
+  .stream-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stream-sidebar-card {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 18px;
+  color: #e2e8f0;
+}
+
+.stream-post-card {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 18px;
+  transition: all 0.2s ease;
+}
+
+.stream-post-card:hover {
+  border-color: rgba(255,255,255,0.18);
+}
+
+.stream-comment {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  font-size: 0.85rem;
+}
+
+/* People Tab */
+.people-section {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.people-section-header {
+  border-bottom: 2px solid #1e8e3e;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.people-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  transition: background 0.15s ease;
+}
+
+.people-row:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.people-row:last-child {
+  border-bottom: none;
+}
+
+.student-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+/* Grades Tab */
+.grades-header-card {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.gradebook-table-wrapper {
+  background: #1e293b;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  overflow-x: auto;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.gradebook-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.gradebook-table th {
+  background: rgba(15, 23, 42, 0.85);
+  color: #94a3b8;
+  padding: 14px 18px;
+  font-weight: 600;
+  border-bottom: 2px solid rgba(255,255,255,0.1);
+  white-space: nowrap;
+}
+
+.gradebook-table td {
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  color: #e2e8f0;
+}
+
+.gradebook-table tr:hover td {
+  background: rgba(255,255,255,0.02);
+}
+
+.grade-score-cell {
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.grade-badge-synced {
+  font-size: 0.7rem;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+

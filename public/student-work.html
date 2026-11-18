@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SocratesAI — Student Socratic Workspace (Google Classroom)</title>
+  <script>
+    (function () {
+      try {
+        if (window.self !== window.top && !location.search.includes('stayInIframe=1') && !location.search.includes('fullWindow=1')) {
+          document.documentElement.classList.add('socrates-iframe-bridge-mode');
+          var style = document.createElement('style');
+          style.id = 'socratesIframeMaskStyle';
+          style.textContent = 'html.socrates-iframe-bridge-mode .app-header, html.socrates-iframe-bridge-mode main.container { display: none !important; } html.socrates-iframe-bridge-mode body { background: #f8f9fa !important; margin: 0 !important; overflow: hidden !important; }';
+          document.head.appendChild(style);
+          var u = new URL(window.location.href);
+          u.searchParams.set('fullWindow', '1');
+          var w = window.open(u.toString(), '_blank');
+          if (w) {
+            window.__socratesAutoOpenedWindow = w;
+            try { w.focus(); } catch (e) {}
+          }
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="stylesheet" href="/css/theme.css?v=20261112a" />
+  <link rel="stylesheet" href="/css/components.css?v=20261112a" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/mathlive/dist/mathlive-static.css" />
+  <script defer src="https://unpkg.com/mathlive"></script>
+  <link rel="stylesheet" href="/css/math-editor.css?v=20261112a" />
+</head>
+<body style="background:#f8f9fa; color:#202124;">
+  <!-- Google Classroom Light App Header -->
+  <header class="app-header" style="background:#ffffff; border-bottom:1px solid #dadce0;">
+    <div class="brand-logo">
+      <div class="brand-icon">🏛️</div>
+      <div>
+        <div class="brand-title" style="color:#202124;">SocratesAI <span class="brand-subtitle" style="color:#5f6368;">Adaptive Socratic Tutor</span></div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+      <!-- Live Student Telemetry Pill (Point 7a) -->
+      <div style="display:inline-flex; align-items:center; gap:0.45rem; padding:0.28rem 0.65rem; border-radius:999px; background:#f1f3f4; border:1px solid #dadce0; font-size:0.74rem; color:#3c4043; font-weight:500;">
+        <span>⏱️ <strong id="studentTimerDisplay" style="color:#1967d2;">00:00</strong></span>
+        <span style="color:#dadce0;">|</span>
+        <span>🔄 Problems: <strong id="studentRepsDisplay" style="color:#137333;">1</strong></span>
+        <span style="color:#dadce0;">|</span>
+        <span>💡 Hints: <strong id="studentHintsDisplay">0</strong></span>
+      </div>
+      <span id="courseBadge" class="badge badge-blue">Grade 12 • Mathematics</span>
+      <span id="modelBadge" class="badge badge-purple">Gemini 3.1 Flash</span>
+      <button id="backToTeacherStudioBtn" type="button" class="btn btn-secondary" style="display:none; padding:0.35rem 0.75rem; font-size:0.76rem; border-color:#1a73e8; color:#1967d2; background:#e8f0fe;">
+        ← Back to Teacher Setup
+      </button>
+      <button id="turnInBtn" class="btn btn-success" style="padding:0.35rem 0.85rem; font-size:0.78rem;">
+        ✅ Turn In to Classroom
+      </button>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top:0.85rem; padding-bottom:1.5rem;">
+    <!-- STICKY TOP BAR: Current Problem + Adaptive Route (Always on Top & Visible) -->
+    <div id="stickyProblemBanner" class="sticky-problem-banner">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem; margin-bottom:0.55rem; padding-bottom:0.5rem; border-bottom:1px solid #e8eaed;">
+        <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+          <span style="font-size:0.74rem; font-weight:700; color:#5f6368; text-transform:uppercase;">Lesson Plan Route:</span>
+          <span id="stagePillDiag" class="badge badge-blue" title="Click to preview Diagnostic Check" style="font-size:0.73rem; padding:0.22rem 0.6rem; cursor:pointer; user-select:none;">🧭 1. Level Diagnostic</span>
+          <span style="color:#9aa0a6;">➔</span>
+          <span id="stagePillA" class="badge" title="Click to switch to Level A (Foundational) Pool" style="font-size:0.73rem; padding:0.22rem 0.6rem; background:#f1f3f4; color:#5f6368; border:1px solid #dadce0; cursor:pointer; user-select:none;">🟢 2. Level A (Foundational)</span>
+          <span style="color:#9aa0a6;">➔</span>
+          <span id="stagePillB" class="badge" title="Click to switch to Level B (Standard) Pool" style="font-size:0.73rem; padding:0.22rem 0.6rem; background:#f1f3f4; color:#5f6368; border:1px solid #dadce0; cursor:pointer; user-select:none;">🔵 3. Level B (Standard)</span>
+          <span style="color:#9aa0a6;">➔</span>
+          <span id="stagePillC" class="badge" title="Click to switch to Level C (Advanced) Pool" style="font-size:0.73rem; padding:0.22rem 0.6rem; background:#f1f3f4; color:#5f6368; border:1px solid #dadce0; cursor:pointer; user-select:none;">🟣 4. Level C (Advanced)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+          <span class="badge badge-green" id="levelBadge">LEVEL A: FOUNDATIONAL</span>
+          <span class="badge" id="poolProgressBadge" style="background:#e6f4ea; color:#137333; border:1px solid #ceead6; font-weight:700;">✅ 0 / 3 Answered</span>
+          <select id="studentModeSwitcher" class="form-select" style="width:auto; padding:0.22rem 1.6rem 0.22rem 0.5rem; font-size:0.74rem;">
+            <option value="step_by_step" selected>👣 Step-by-Step Guided</option>
+            <option value="independent">🚀 Independent Mode</option>
+          </select>
+          <button id="generateSimilarBtn" type="button" class="btn btn-secondary" style="padding:0.32rem 0.75rem; font-size:0.78rem; color:#1967d2; border-color:#1a73e8; background:#e8f0fe; font-weight:600;">
+            ⏭️ Next Problem (1/3)
+          </button>
+        </div>
+      </div>
+
+      <!-- Always-On-Top Current Problem Box -->
+      <div id="currentProblemCard" style="padding:0.7rem 0.95rem; border-radius:8px; background:#e8f0fe; border:1.5px solid #1a73e8; display:flex; flex-direction:column; gap:0.6rem;">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+          <div style="flex:1; min-width:240px;">
+            <div style="display:flex; align-items:center; gap:0.55rem; margin-bottom:0.25rem; flex-wrap:wrap;">
+              <span style="font-size:0.72rem; font-weight:800; text-transform:uppercase; color:#1967d2; letter-spacing:0.03em;">📌 Current Problem (Always Visible)</span>
+              <span id="problemCounterTag" style="font-size:0.73rem; color:#ffffff; background:#1a73e8; padding:0.12rem 0.6rem; border-radius:999px; font-weight:700;">Diagnostic Check</span>
+              <span id="currentProblemStatusBadge" style="font-size:0.71rem; color:#b06000; background:#fef7e0; border:1px solid #fde293; padding:0.1rem 0.55rem; border-radius:999px; font-weight:600;">⏳ Awaiting Answer</span>
+            </div>
+            <div id="activityPrompt" class="wysiwyg-math-block" style="font-size:0.98rem; color:#202124; font-weight:600; line-height:1.5;">
+              Loading current problem...
+            </div>
+            <div id="activeLevelDescriptionBanner" style="font-size:0.77rem; color:#3c4043; margin-top:0.25rem;"></div>
+          </div>
+        </div>
+
+        <!-- Shown when all problems in the finite pool are completed -->
+        <div id="poolCompletedBanner" style="display:none; align-items:center; justify-content:space-between; gap:0.8rem; flex-wrap:wrap; padding:0.65rem 0.85rem; border-radius:6px; background:#e6f4ea; border:1.5px solid #1e8e3e;">
+          <div style="font-size:0.86rem; font-weight:700; color:#137333;">
+            🎉 All selected problems have been completed! Ready to turn in your assignment.
+          </div>
+          <button id="bannerTurnInBtn" type="button" class="btn btn-success" style="padding:0.45rem 1rem; font-size:0.82rem; font-weight:700; background:#137333; color:#ffffff;">
+            🎓 Turn In Assignment to Classroom
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-sidebar">
+      <!-- Left Sidebar: Lesson Plan Overview, Milestones, Mastery & Reference Material -->
+      <aside style="display:flex; flex-direction:column; gap:1rem;">
+        <!-- Lesson Plan Topic & Goal Card -->
+        <div class="glass-panel" style="padding:1.05rem; background:#ffffff; border:1px solid #dadce0;">
+          <div style="font-size:0.72rem; font-weight:700; text-transform:uppercase; color:#1967d2; margin-bottom:0.25rem;">Lesson Plan Topic &amp; Competency</div>
+          <h2 id="activityTitle" style="font-size:1.02rem; color:#202124; margin-bottom:0.4rem;">Loading Lesson Plan...</h2>
+          <div id="activityGoal" class="wysiwyg-math-block" style="font-size:0.82rem; color:#3c4043; line-height:1.55;">
+            Loading learning goal and milestones...
+          </div>
+        </div>
+
+        <!-- Mastery Progress & Milestones Card -->
+        <div class="glass-panel" style="padding:1.15rem; background:#ffffff; border:1px solid #dadce0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+            <span style="font-size:0.82rem; font-weight:600; color:#202124;">Concept Mastery</span>
+            <span id="masteryPercent" style="font-size:0.85rem; font-weight:700; color:#137333;">0% (0/3 Submitted)</span>
+          </div>
+          <div class="progress-track" style="margin-bottom:0.9rem; background:#e8eaed;">
+            <div id="masteryFill" class="progress-fill" style="width:0%;"></div>
+          </div>
+
+          <div style="font-size:0.74rem; font-weight:700; text-transform:uppercase; color:#5f6368; margin-bottom:0.5rem;">
+            Lesson Plan Milestones
+          </div>
+          <div id="milestoneList" style="display:flex; flex-direction:column; gap:0.5rem;">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <!-- Attached Reference Material Card -->
+        <div class="glass-panel" id="referenceMaterialCard" style="padding:1.15rem; background:#ffffff; border:1px solid #dadce0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.4rem;">
+            <span style="font-size:0.75rem; font-weight:700; text-transform:uppercase; color:#1967d2;">📚 Teacher Reference Sheet</span>
+            <button id="toggleMaterialViewBtn" type="button" style="background:none; border:none; color:#1a73e8; font-size:0.75rem; cursor:pointer; font-weight:600;">Collapse</button>
+          </div>
+          <div id="referenceSourceLabel" style="font-size:0.74rem; color:#5f6368; margin-bottom:0.45rem;">Teacher Material Studio</div>
+          <div id="referenceMaterialContent" style="display:block; max-height:260px; overflow-y:auto; padding:0.75rem; border-radius:6px; background:#f8f9fa; border:1px solid #dadce0; font-size:0.82rem; color:#202124; line-height:1.6;"></div>
+        </div>
+      </aside>
+
+      <!-- Right Main Area: Socratic Dialogue & Multimodal Handwritten Photo Input -->
+      <section class="glass-panel chat-wrapper" style="background:#ffffff; border:1px solid #dadce0;">
+        <div class="chat-header" style="background:#f8f9fa; border-bottom:1px solid #dadce0;">
+          <div style="display:flex; align-items:center; gap:0.65rem;">
+            <div style="width:10px; height:10px; border-radius:50%; background:#1e8e3e;"></div>
+            <div>
+              <div style="font-weight:600; font-size:0.92rem; color:#202124;">SocratesAI — Personal Socratic Tutor</div>
+              <div style="font-size:0.75rem; color:#5f6368;">Accepts live formulas, text, and 📷 photos of handwritten paper solutions &amp; graphs</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:0.45rem;">
+            <button id="openStudentPhoneModalBtn" type="button" class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.78rem; color:#137333; border-color:#ceead6; background:#e6f4ea;">
+              📷 Photo of Handwritten Work (Formulas / Graph)
+            </button>
+            <button id="requestHintBtn" type="button" class="btn btn-secondary" style="padding:0.35rem 0.75rem; font-size:0.78rem;">
+              💡 Request Hint
+            </button>
+          </div>
+        </div>
+
+        <!-- Step-by-Step Proof Requirement Explanation Banner (Requirement 4) -->
+        <div id="stepByStepInstructionBanner" style="padding:0.65rem 1rem; background:#fef7e0; border-bottom:1px solid #fde293; font-size:0.78rem; color:#3c4043; line-height:1.45;">
+          <div style="font-weight:700; color:#b06000; margin-bottom:0.15rem;">
+            📐 How to Write Your Answer — Step-by-Step Proof Required (A Single Number Alone Is Not Accepted)
+          </div>
+          <div>
+            <strong>Why a single number is not acceptable:</strong> Entering only a bare number (e.g., <code>5</code> or <code>2</code>) does not prove knowledge of the underlying rule or reasoning steps.
+            <br/>
+            <strong>How to write your answer:</strong> Either (1) send intermediate steps one by one using <strong>💬 Send Step</strong> and then click <strong>✅ Submit Answer</strong>, or (2) write the full step-by-step chain with <code>=</code> (e.g., $\log_2(4 \cdot 8) = \log_2(32) = 5$), or (3) attach a <strong>📷 Photo Sheet</strong> of your handwritten steps.
+          </div>
+        </div>
+
+        <!-- Chat Messages Container -->
+        <div class="chat-messages" id="chatMessages" style="background:#ffffff;">
+          <!-- Dynamic dialogue bubbles -->
+        </div>
+
+        <!-- Socratic Scaffolds / Quick Prompts -->
+        <div class="hint-drawer" style="background:#f8f9fa; border-top:1px solid #dadce0;">
+          <span style="font-size:0.74rem; color:#5f6368; margin-right:0.25rem; align-self:center;">Quick prompts:</span>
+          <button type="button" class="hint-chip" data-prompt="Which rule or step should I start with to simplify this expression?">Where do I start?</button>
+          <button type="button" class="hint-chip" data-prompt="Can you check my step-by-step derivation and graph on my attached photo?">Check my solution</button>
+          <button type="button" class="hint-chip" data-prompt="How do I properly apply the Power Law before the Quotient Law here?">Remind me of the rule</button>
+        </div>
+
+        <!-- Pending Photo Attachment Preview Bar -->
+        <div id="pendingPhotoPreviewBar" style="display:none; padding:0.65rem 1.25rem; background:#e8f0fe; border-top:1px solid #d2e3fc; align-items:center; justify-content:space-between; gap:1rem;">
+          <div style="display:flex; align-items:center; gap:0.75rem;">
+            <img id="pendingPhotoThumb" src="" alt="Attached solution photo" style="width:68px; height:52px; object-fit:cover; border-radius:6px; border:1px solid #1a73e8; background:#ffffff;" />
+            <div>
+              <div style="font-size:0.8rem; font-weight:600; color:#1967d2;">📷 Handwritten Solution Attached (Formulas / Graph / Annotations)</div>
+              <div style="font-size:0.73rem; color:#3c4043;">Click "Send" so the multimodal LLM can inspect every step and graph on your sheet</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:0.4rem;">
+            <button type="button" id="rotatePendingPhotoBtn" class="btn btn-secondary" style="padding:0.25rem 0.6rem; font-size:0.74rem;">↻ Rotate</button>
+            <button type="button" id="removePendingPhotoBtn" class="btn btn-secondary" style="padding:0.25rem 0.6rem; font-size:0.74rem; color:#c5221f;">✕ Remove</button>
+          </div>
+        </div>
+
+        <!-- Chat Input Area (WYSIWYG Math+Text + Photo Upload + Send Step + Submit Problem Answer) -->
+        <div class="chat-input-bar" style="align-items:flex-end; background:#ffffff; border-top:1px solid #dadce0;">
+          <div id="studentMathEditorWrap" style="flex:1;"></div>
+          <textarea id="chatInput" style="display:none;"></textarea>
+          <div style="display:flex; flex-direction:column; gap:0.35rem;">
+            <button id="attachPhotoQuickBtn" type="button" class="btn btn-secondary" style="padding:0.38rem 0.75rem; font-size:0.78rem; border-color:#1e8e3e; color:#137333;" title="Attach photo of handwritten paper solution from phone or device">
+              📷 Photo Sheet
+            </button>
+            <div style="display:flex; gap:0.4rem;">
+              <button id="sendBtn" type="button" class="btn btn-primary" style="padding:0.5rem 0.9rem; font-size:0.82rem;" title="Discuss your current step with the Socratic tutor">
+                💬 Send Step
+              </button>
+              <button id="submitAnswerBottomBtn" type="button" class="btn btn-success" style="padding:0.5rem 0.95rem; font-size:0.82rem; font-weight:700; background:#1e8e3e; border-color:#137333; color:#ffffff;" title="Submit your answer for this problem and advance to the next problem">
+                ✅ Submit Answer
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Student Phone Camera / Handwritten Solution Upload Modal -->
+  <div id="studentPhoneModal" style="display:none; position:fixed; inset:0; background:rgba(32,33,36,0.55); z-index:2000; align-items:center; justify-content:center; padding:1rem;">
+    <div class="glass-panel" style="max-width:520px; width:100%; padding:1.5rem; background:#ffffff; border:1px solid #dadce0; border-radius:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.65rem;">
+        <h3 style="font-size:1.05rem; color:#202124;">📷 Submit Photo of Handwritten Solution</h3>
+        <button type="button" id="closeStudentPhoneModalBtn" style="background:none; border:none; font-size:1.1rem; color:#5f6368; cursor:pointer;">✕</button>
+      </div>
+      <p style="font-size:0.82rem; color:#5f6368; margin-bottom:0.9rem;">
+        Solve the problem on paper (formulas, function graphs, asymptotes, interval charts, or margin notes) and snap a photo with your phone. The multimodal LLM understands and evaluates your full page.
+      </p>
+
+      <div style="display:grid; grid-template-columns:135px 1fr; gap:0.9rem; align-items:center; padding:0.85rem; background:#f8f9fa; border:1px solid #dadce0; border-radius:8px; margin-bottom:1rem;">
+        <div style="text-align:center;">
+          <img id="studentQrImg" src="" alt="QR Code" style="width:120px; height:120px; border-radius:8px; border:1px solid #dadce0; background:#ffffff; padding:4px;" />
+        </div>
+        <div>
+          <div style="font-size:0.84rem; font-weight:600; color:#202124; margin-bottom:0.3rem;">Scan QR Code with Your Phone</div>
+          <p style="font-size:0.76rem; color:#5f6368; margin-bottom:0.45rem;">
+            Take a photo of your notebook page with your phone camera — it will attach directly to your chat response.
+          </p>
+          <a id="studentQrDirectLink" href="#" target="_blank" style="font-size:0.75rem; color:#1a73e8; text-decoration:underline;">Open Mobile Camera in New Tab ↗</a>
+        </div>
+      </div>
+
+      <div style="display:flex; flex-direction:column; gap:0.5rem;">
+        <input type="file" id="studentCameraFileInput" accept="image/*" capture="environment" style="display:none;" />
+        <button type="button" id="triggerStudentCameraFileBtn" class="btn btn-primary" style="width:100%;">
+          📸 Choose Photo / Take Snapshot from Device
+        </button>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+          <button type="button" id="attachDemoFormulaPhotoBtn" class="btn btn-secondary" style="font-size:0.78rem;">
+            🧪 Demo Photo: Formula Steps
+          </button>
+          <button type="button" id="attachDemoGraphPhotoBtn" class="btn btn-secondary" style="font-size:0.78rem;">
+            📈 Demo Photo: Graph &amp; Asymptote
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Turn-In Confirmation Modal -->
+  <div id="turnInModal" style="display:none; position:fixed; inset:0; background:rgba(32,33,36,0.55); z-index:2000; align-items:center; justify-content:center; padding:1rem;">
+    <div class="glass-panel" style="max-width:480px; width:100%; padding:1.75rem; text-align:center; background:#ffffff; border:1px solid #dadce0;">
+      <div style="font-size:2.5rem; margin-bottom:0.5rem;">🎓</div>
+      <h2 style="margin-bottom:0.4rem; color:#202124;">Turned In to Google Classroom!</h2>
+      <p style="margin-bottom:1.25rem; font-size:0.86rem; color:#5f6368;">
+        Your Socratic dialogue transcript, handwritten solution photos, and telemetry metrics have been submitted to your teacher.
+      </p>
+      <div style="padding:0.9rem; border-radius:8px; background:#e6f4ea; border:1px solid #ceead6; margin-bottom:1.25rem; text-align:left; font-size:0.82rem; color:#137333;">
+        <div><strong>Final Concept Mastery:</strong> <span id="modalMastery">95%</span></div>
+        <div><strong>Highest Level Reached:</strong> <span id="modalLevelReached">Level C</span></div>
+        <div><strong>Active Time Spent:</strong> <span id="modalTimeSpent">03:20</span></div>
+      </div>
+      <div style="display:flex; gap:0.75rem; justify-content:center;">
+        <a id="openTeacherReviewLink" href="/teacher-review.html" class="btn btn-primary">
+          👩‍🏫 Open Teacher Review &amp; Cohort Dashboard ➔
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/student.js?v=20261118c"></script>
+</body>
+</html>
