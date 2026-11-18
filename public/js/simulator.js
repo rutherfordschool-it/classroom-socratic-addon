@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const logFeed = document.getElementById('simulatorEventLog');
 
   let currentAttachmentId = 'att-demo-socratic-01';
-  let currentSubmissionId = 'sub-pavel-birulin-live';
+  let currentSubmissionId = 'sub-demo-student-live';
 
   function logEvent(title, detail) {
     const timestamp = new Date().toLocaleTimeString();
@@ -64,14 +64,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if (hostTitle) hostTitle.innerText = 'Google Classroom • Coursework Assignment Editor > Add-on Attachment Dialog';
       if (hostSub) hostSub.innerText = 'Teacher clicked "+ Add-on" > "SocratesAI". Classroom opened attachmentDiscoveryUri iframe modal.';
     } else if (journey === 'student-work') {
-      targetUrl = `/student-work.html?attachmentId=${currentAttachmentId}&submissionId=${currentSubmissionId}&courseId=test-class-math&itemId=coursework-01&studentName=Pavel%20Birulin&login_hint=pavel.birulin@gmail.com`;
+      targetUrl = `/student-work.html?attachmentId=${currentAttachmentId}&submissionId=${currentSubmissionId}&courseId=test-class-math&itemId=coursework-01&studentName=Pavel%20Birulin&login_hint=demo.student@example.com`;
       if (queryBadge) queryBadge.innerText = `role=student | journey=studentWork | attachmentId=${currentAttachmentId}`;
-      if (hostTitle) hostTitle.innerText = 'Google Classroom • Student Assignment View (Pavel Birulin)';
+      if (hostTitle) hostTitle.innerText = 'Google Classroom • Student Assignment View (Demo Student)';
       if (hostSub) hostSub.innerText = 'Student opened assignment. Classroom embeds studentWorkUri in their coursework view.';
     } else if (journey === 'teacher-review') {
       targetUrl = `/teacher-review.html?submissionId=${currentSubmissionId}&attachmentId=${currentAttachmentId}&courseId=test-class-math&itemId=coursework-01`;
       if (queryBadge) queryBadge.innerText = `role=teacher | journey=studentWorkReview | submissionId=${currentSubmissionId}`;
-      if (hostTitle) hostTitle.innerText = 'Google Classroom • Grading & Student Work Review (Pavel Birulin)';
+      if (hostTitle) hostTitle.innerText = 'Google Classroom • Grading & Student Work Review (Demo Student)';
       if (hostSub) hostSub.innerText = 'Teacher opened student submission. Classroom embeds studentWorkReviewUri with automated Grade Passback.';
     }
 
@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btnExportGradesCsv')?.addEventListener('click', () => {
     const csvContent = "data:text/csv;charset=utf-8," + [
       "Student Name,Email,Overall Grade,Laws of Logarithms (SocratesAI / 100),Stoichiometry & Ratios (SocratesAI / 100),Unit 1 Quiz (/50)",
-      "Pavel Birulin,pavel.birulin@gmail.com,95.0%,95,90,47",
+      "Demo Student,demo.student@example.com,95.0%,95,90,47",
       "Marcus Vance,marcus.v@highschool.edu,94.5%,95,94,48",
       "Jordan Rivera,jordan.r@highschool.edu,88.5%,88,86,44",
       "Maya Lin,maya.l@highschool.edu,In Progress,In Progress,88,45",
@@ -185,10 +185,10 @@ document.addEventListener('DOMContentLoaded', () => {
       const score = data.payload.score || 92;
       
       // Update Gradebook table dynamically!
-      const valEl = document.getElementById('gradeValue-pavel');
+      const valEl = document.getElementById('gradeValue-demo');
       if (valEl) {
         valEl.innerText = score;
-        const cell = document.getElementById('gradeCell-pavel');
+        const cell = document.getElementById('gradeCell-demo');
         if (cell) {
           cell.style.background = 'rgba(16, 185, 129, 0.35)';
           cell.style.padding = '4px 10px';

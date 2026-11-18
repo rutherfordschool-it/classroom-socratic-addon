@@ -1,5 +1,6 @@
 import { google } from 'googleapis';
 import { config } from '../config.js';
+import { classroomService } from './classroomService.js';
 
 class MaterialIngestionService {
   constructor() {
@@ -202,11 +203,24 @@ class MaterialIngestionService {
       }
     ];
 
+    const savedInDrive = (classroomService.getCustomMaterials() || []).map(m => ({
+      id: m.id,
+      title: m.title,
+      fileType: m.docCategory === 'curriculum' ? 'Curriculum (Drive)' : 'Material (Drive)',
+      folder: `My Drive / ${config.driveFolderName || 'SocratesAI Data'}`,
+      updatedAt: m.savedAt ? new Date(m.savedAt).toLocaleDateString() : 'Saved in Drive',
+      subject: m.subject || 'Mathematics',
+      gradeLevel: m.gradeLevel || 'Grade 12',
+      docCategory: m.docCategory || 'material',
+      content: m.content || ''
+    }));
+
+    const allFiles = [...savedInDrive, ...driveFiles];
     if (query && query.trim()) {
       const q = query.trim().toLowerCase();
-      return driveFiles.filter(f => f.title.toLowerCase().includes(q) || f.folder.toLowerCase().includes(q) || f.content.toLowerCase().includes(q));
+      return allFiles.filter(f => f.title.toLowerCase().includes(q) || f.folder.toLowerCase().includes(q) || f.content.toLowerCase().includes(q));
     }
-    return driveFiles;
+    return allFiles;
   }
 
   /**

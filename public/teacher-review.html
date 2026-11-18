@@ -91,6 +91,40 @@
       <div class="grid-3" id="cohortGroupsGrid" style="gap:1rem;">
         <!-- Populated dynamically by review.js -->
       </div>
+
+      <!-- Gathered Results Table for All Students + Google Drive Sync Bar -->
+      <div id="allStudentsResultsSection" style="margin-top:1.15rem; padding-top:1rem; border-top:1px solid #dadce0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem; margin-bottom:0.75rem;">
+          <div>
+            <div style="font-size:0.95rem; font-weight:700; color:#202124;">📊 Gathered Assignment Results for All Students</div>
+            <div id="driveSyncStatusBanner" style="font-size:0.78rem; color:#5f6368;">All student results, lesson plans, and materials are automatically saved to the shared Google Drive folder.</div>
+          </div>
+          <div id="driveQuickActionLinks" style="display:flex; gap:0.55rem; flex-wrap:wrap;"></div>
+        </div>
+        <div style="overflow-x:auto; border:1px solid #dadce0; border-radius:8px; background:#ffffff;">
+          <table style="width:100%; border-collapse:collapse; font-size:0.8rem; text-align:left;">
+            <thead>
+              <tr style="background:#f8f9fa; border-bottom:1px solid #dadce0; color:#5f6368; font-size:0.73rem; text-transform:uppercase;">
+                <th style="padding:0.55rem 0.75rem;">Student</th>
+                <th style="padding:0.55rem 0.65rem;">Status</th>
+                <th style="padding:0.55rem 0.65rem;">Level</th>
+                <th style="padding:0.55rem 0.65rem;">Problems (Correct / Answered)</th>
+                <th style="padding:0.55rem 0.65rem;">Mastery</th>
+                <th style="padding:0.55rem 0.65rem;">AI Score</th>
+                <th style="padding:0.55rem 0.65rem;">Teacher Grade</th>
+                <th style="padding:0.55rem 0.65rem;">Mistakes</th>
+                <th style="padding:0.55rem 0.65rem;">Hints</th>
+                <th style="padding:0.55rem 0.65rem;">Active Time</th>
+              </tr>
+            </thead>
+            <tbody id="allStudentsResultsTableBody">
+              <tr>
+                <td colspan="10" style="padding:0.9rem; text-align:center; color:#5f6368; font-style:italic;">No student submissions yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
 
     <!-- =====================================================================
@@ -230,6 +264,6 @@
     </div>
   </main>
 
-  <script type="module" src="/js/review.js?v=20261113i"></script>
+  <script type="module" src="/js/review.js?v=20261118c"></script>
 </body>
 </html>

@@ -58,6 +58,21 @@ function renderMathSafe(el, attempt = 0) {
   }
 }
 
+function escapeHtml(value = '') {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Only genuine base64 raster images may be rendered; anything else (javascript:, remote URLs, SVG) is dropped. */
+function safeImageSrc(data = '') {
+  const str = String(data || '');
+  return /^data:image\/(?:png|jpe?g|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(str) ? str : '';
+}
+
 function formatDuration(sec = 0) {
   const s = Math.max(0, Math.round(Number(sec) || 0));
   const m = Math.floor(s / 60).toString().padStart(2, '0');
@@ -90,12 +105,119 @@ async function loadCohortSummary() {
     const data = await res.json();
     if (data.success) {
       cohortSummary = data;
+      renderResultsLink(data);
       renderTeacherPrepTelemetry(data.teacherTelemetry);
       renderCohortsGrid(data.cohorts);
     }
   } catch (err) {
     console.warn('Could not load cohort summary:', err);
   }
+}
+
+/** Shows where every student's results are stored (shared Google Drive folder / results sheet) */
+function renderResultsLink(data = {}) {
+  const host = document.getElementById('activityTitleSub');
+  if (host) {
+    let box = document.getElementById('driveResultsLink');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'driveResultsLink';
+      box.style.cssText = 'margin-top:0.35rem; font-size:0.78rem; display:flex; gap:0.75rem; flex-wrap:wrap;';
+      host.insertAdjacentElement('afterend', box);
+    }
+    const links = [];
+    if (data.resultsSheetUrl) {
+      links.push(`<a href="${escapeHtml(data.resultsSheetUrl)}" target="_blank" rel="noopener">📊 All students' results in Google Drive</a>`);
+    }
+    links.push(`<a href="/api/attachment/${encodeURIComponent(attachmentId)}/results.csv">⬇️ Download results (CSV)</a>`);
+    if (data.storage?.driveFolderUrl) {
+      links.push(`<a href="${escapeHtml(data.storage.driveFolderUrl)}" target="_blank" rel="noopener">📁 Google Drive data folder</a>`);
+    }
+    box.innerHTML = links.join('');
+  }
+
+  const topActionLinks = document.getElementById('driveQuickActionLinks');
+  const statusBanner = document.getElementById('driveSyncStatusBanner');
+  if (statusBanner && data.storage) {
+    if (data.storage.driveFolderUrl) {
+      statusBanner.innerHTML = `✅ Synced to Google Drive folder <strong>${escapeHtml(data.storage.driveName || 'SocratesAI Data')}</strong> (shared with school Drive).`;
+    } else {
+      statusBanner.textContent = `Storage mode: ${data.storage.backend || 'local'}. All student submissions are gathered below.`;
+    }
+  }
+  if (topActionLinks) {
+    const btns = [];
+    if (data.resultsSheetUrl) {
+      btns.push(`<a href="${escapeHtml(data.resultsSheetUrl)}" target="_blank" rel="noopener" class="btn btn-secondary" style="padding:0.32rem 0.7rem; font-size:0.76rem;">📊 Open Results in Google Drive</a>`);
+    }
+    if (data.storage?.driveFolderUrl) {
+      btns.push(`<a href="${escapeHtml(data.storage.driveFolderUrl)}" target="_blank" rel="noopener" class="btn btn-secondary" style="padding:0.32rem 0.7rem; font-size:0.76rem;">📁 Open Google Drive Folder</a>`);
+    }
+    btns.push(`<a href="/api/attachment/${encodeURIComponent(attachmentId)}/results.csv" class="btn btn-secondary" style="padding:0.32rem 0.7rem; font-size:0.76rem;">⬇️ Export All Students CSV</a>`);
+    topActionLinks.innerHTML = btns.join('');
+  }
+}
+
+function renderAllStudentsResultsTable() {
+  const tbody = document.getElementById('allStudentsResultsTableBody');
+  if (!tbody) return;
+  if (!Array.isArray(allSubmissions) || allSubmissions.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="10" style="padding:0.9rem; text-align:center; color:#5f6368; font-style:italic;">No student submissions yet. Once students submit answers, all students' results appear here automatically.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = allSubmissions.map(sub => {
+    const isSelected = sub.submissionId === currentSubmissionId;
+    const isSubmitted = sub.status === 'TURNED_IN' || sub.status === 'SUBMITTED';
+    const solved = Array.isArray(sub.solvedProblems) ? sub.solvedProblems : [];
+    const verdicts = sub.aiAnalysis?.perProblem || [];
+    const correctCount = verdicts.filter(v => v.correct).length;
+    const totalExpected = Number(sub.totalSelectedProblems) || Math.max(3, solved.length);
+    const mastery = sub.masteryLevel ?? sub.aiAnalysis?.masteryPercentage ?? 0;
+    const aiScore = sub.suggestedScore ?? mastery;
+    const teacherGrade = sub.assignedScore !== null && sub.assignedScore !== undefined ? `${sub.assignedScore}/100` : '—';
+    const mistakes = sub.mistakesCount ?? (sub.aiAnalysis?.misconceptionsIdentified?.length || 0);
+    const hints = sub.hintsUsedCount ?? 0;
+    const scoreColor = aiScore >= 85 ? '#137333' : aiScore >= 60 ? '#1967d2' : '#c5221f';
+
+    return `
+      <tr class="student-result-row" data-sub-id="${escapeHtml(sub.submissionId)}" style="cursor:pointer; border-bottom:1px solid #dadce0; background:${isSelected ? '#e8f0fe' : '#ffffff'};">
+        <td style="padding:0.55rem 0.75rem; font-weight:600; color:#202124;">
+          ${escapeHtml(sub.studentName || 'Student')}
+          ${sub.studentEmail ? `<div style="font-size:0.7rem; color:#5f6368; font-weight:400;">${escapeHtml(sub.studentEmail)}</div>` : ''}
+        </td>
+        <td style="padding:0.55rem 0.65rem;">
+          <span class="badge ${isSubmitted ? 'badge-green' : 'badge-blue'}" style="font-size:0.7rem;">${isSubmitted ? 'Submitted' : 'In Progress'}</span>
+        </td>
+        <td style="padding:0.55rem 0.65rem; font-weight:600;">Level ${escapeHtml(sub.currentLevel || 'A')}</td>
+        <td style="padding:0.55rem 0.65rem;"><strong>${correctCount}</strong> / ${solved.length} answered (of ${totalExpected})</td>
+        <td style="padding:0.55rem 0.65rem; font-weight:700; color:${scoreColor};">${mastery}%</td>
+        <td style="padding:0.55rem 0.65rem; font-weight:700; color:${scoreColor};">${aiScore}/100</td>
+        <td style="padding:0.55rem 0.65rem; font-weight:700; color:#137333;">${escapeHtml(teacherGrade)}</td>
+        <td style="padding:0.55rem 0.65rem; color:${mistakes > 0 ? '#c5221f' : '#137333'}; font-weight:600;">${mistakes}</td>
+        <td style="padding:0.55rem 0.65rem;">${hints}</td>
+        <td style="padding:0.55rem 0.65rem;">${formatDuration(sub.activeTimeSec || 0)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.querySelectorAll('.student-result-row').forEach(row => {
+    row.addEventListener('click', async () => {
+      const subId = row.getAttribute('data-sub-id');
+      if (subId) {
+        currentSubmissionId = subId;
+        const sel = document.getElementById('studentSubmissionSelect');
+        if (sel) sel.value = subId;
+        renderAllStudentsResultsTable();
+        if (cohortSummary?.cohorts) renderCohortsGrid(cohortSummary.cohorts);
+        await loadSubmissionData(subId);
+      }
+    });
+  });
 }
 
 function renderTeacherPrepTelemetry(telemetry = {}) {
@@ -130,9 +252,9 @@ function renderCohortsGrid(cohorts = {}) {
       : group.students.map(s => {
           const isSelected = s.submissionId === currentSubmissionId;
           return `
-            <div class="cohort-student-card" data-sub-id="${s.submissionId}" style="padding:0.65rem 0.75rem; border-radius:8px; background:#ffffff; border:${isSelected ? '2px solid #1a73e8' : '1px solid #dadce0'}; cursor:pointer; transition:all 0.12s; box-shadow:0 1px 2px rgba(60,64,67,0.06);">
+            <div class="cohort-student-card" data-sub-id="${escapeHtml(s.submissionId)}" style="padding:0.65rem 0.75rem; border-radius:8px; background:#ffffff; border:${isSelected ? '2px solid #1a73e8' : '1px solid #dadce0'}; cursor:pointer; transition:all 0.12s; box-shadow:0 1px 2px rgba(60,64,67,0.06);">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.25rem;">
-                <strong style="font-size:0.83rem; color:#202124;">${s.studentName}</strong>
+                <strong style="font-size:0.83rem; color:#202124;">${escapeHtml(s.studentName)}</strong>
                 <span class="badge ${st.badgeClass}" style="font-size:0.7rem;">${s.masteryLevel}%</span>
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:0.45rem; font-size:0.72rem; color:#5f6368;">
@@ -149,10 +271,10 @@ function renderCohortsGrid(cohorts = {}) {
     return `
       <div style="padding:0.95rem; border-radius:10px; background:${st.bg}; border:1px solid ${st.border}; display:flex; flex-direction:column; gap:0.6rem;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-size:0.86rem; font-weight:700; color:${st.titleColor};">${st.icon} ${group.label}</div>
+          <div style="font-size:0.86rem; font-weight:700; color:${st.titleColor};">${st.icon} ${escapeHtml(group.label)}</div>
           <span style="font-size:0.75rem; font-weight:700; color:${st.titleColor};">${group.students.length} student(s)</span>
         </div>
-        <div style="font-size:0.75rem; color:#3c4043; line-height:1.35;">${group.recommendation}</div>
+        <div style="font-size:0.75rem; color:#3c4043; line-height:1.35;">${escapeHtml(group.recommendation)}</div>
         <div style="display:flex; flex-direction:column; gap:0.45rem; margin-top:0.2rem;">
           ${studentsHtml}
         </div>
@@ -167,6 +289,7 @@ function renderCohortsGrid(cohorts = {}) {
         currentSubmissionId = subId;
         const sel = document.getElementById('studentSubmissionSelect');
         if (sel) sel.value = subId;
+        renderAllStudentsResultsTable();
         renderCohortsGrid(cohortSummary.cohorts);
         await loadSubmissionData(subId);
       }
@@ -198,12 +321,15 @@ async function loadSubmissionsList() {
         select.value = currentSubmissionId;
         select.onchange = async (e) => {
           currentSubmissionId = e.target.value;
+          renderAllStudentsResultsTable();
           if (cohortSummary?.cohorts) renderCohortsGrid(cohortSummary.cohorts);
           await loadSubmissionData(currentSubmissionId);
         };
       }
+      renderAllStudentsResultsTable();
     } else {
       allSubmissions = [];
+      renderAllStudentsResultsTable();
       if (select) {
         select.innerHTML = '<option value="">No student submissions yet</option>';
       }
@@ -390,16 +516,16 @@ function renderReviewDashboard() {
     bubble.className = `message-bubble ${msg.role === 'user' ? 'message-user' : 'message-ai'}`;
     const label = msg.role === 'user' ? (submissionData.studentName || 'Student') : 'SocratesAI Tutor';
 
-    const formattedContent = (msg.content || '')
+    const formattedContent = escapeHtml(msg.content || '')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\n/g, '<br/>');
 
     let attachmentsHtml = '';
     if (Array.isArray(msg.attachments) && msg.attachments.length > 0) {
       attachmentsHtml = `<div style="margin-top:0.55rem; display:flex; gap:0.5rem; flex-wrap:wrap;">
-        ${msg.attachments.map(att => `
+        ${msg.attachments.filter(att => safeImageSrc(att && att.data)).map(att => `
           <div style="border:1px solid rgba(0,0,0,0.15); border-radius:8px; background:#ffffff; padding:4px;">
-            <img src="${att.data}" alt="Student Handwritten Work" style="max-width:250px; max-height:175px; border-radius:4px; display:block; object-fit:contain;" />
+            <img src="${safeImageSrc(att.data)}" alt="Student Handwritten Work" style="max-width:250px; max-height:175px; border-radius:4px; display:block; object-fit:contain;" />
             <div style="font-size:0.7rem; color:#5f6368;">📷 Student Handwritten Sheet</div>
           </div>
         `).join('')}
@@ -407,7 +533,7 @@ function renderReviewDashboard() {
     }
 
     bubble.innerHTML = `
-      <div class="message-meta"><span>${label}</span></div>
+      <div class="message-meta"><span>${escapeHtml(label)}</span></div>
       <div class="message-content">${formattedContent}${attachmentsHtml}</div>
     `;
     transcriptContainer.appendChild(bubble);
@@ -480,22 +606,28 @@ function setupEventListeners() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          courseId,
-          courseWorkId,
-          submissionId: currentSubmissionId || 'manual-grade-passback',
+          submissionId: currentSubmissionId,
           assignedGrade: Number(assignedGrade),
-          teacherComment,
-          addOnToken
+          teacherComment
         })
       });
       const data = await res.json();
-      if (data.success) {
-        statusText.textContent = `✅ Grade ${assignedGrade}/100 passed back to Google Classroom`;
+      if (data.success && data.result?.liveApi) {
+        statusText.style.color = '#137333';
+        statusText.textContent = `✅ Grade ${assignedGrade}/100 sent to Google Classroom`;
         passbackBtn.textContent = '✅ Synced';
+      } else if (data.success) {
+        statusText.style.color = '#b06000';
+        statusText.textContent = `💾 ${data.result?.message || 'Grade saved to the results sheet.'}`;
+        passbackBtn.disabled = false;
+        passbackBtn.textContent = '🚀 Sync Grade to Google Classroom';
+        await Promise.all([loadCohortSummary(), loadSubmissionsList()]);
+      } else {
+        throw new Error(data.error || 'Grade could not be saved');
       }
     } catch (err) {
       statusText.style.color = '#d93025';
-      statusText.textContent = '❌ Failed to sync grade';
+      statusText.textContent = `❌ Failed to sync grade: ${err.message || err}`;
       passbackBtn.disabled = false;
       passbackBtn.textContent = '🚀 Sync Grade to Google Classroom';
     }

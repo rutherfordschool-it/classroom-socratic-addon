@@ -16,7 +16,7 @@ export class LLMService {
   getAvailableModels() {
     return [
       {
-        id: 'gemini-3.1-flash-lite',
+        id: config.models.geminiFast,
         provider: 'gemini',
         name: 'Google Gemini 3.1 Flash',
         badge: 'Recommended for Classroom',
@@ -24,9 +24,9 @@ export class LLMService {
         description: 'Ultra-fast multimodal reasoning, perfect for real-time student dialogues and math rendering.'
       },
       {
-        id: 'gemini-1.5-pro',
+        id: config.models.geminiPro,
         provider: 'gemini',
-        name: 'Google Gemini 1.5 Pro',
+        name: 'Google Gemini 3.1 Pro',
         badge: 'Deep Reasoning',
         isConfigured: config.hasGeminiKey,
         description: 'Extended context and high-fidelity pedagogy for complex science and calculus problems.'
@@ -104,7 +104,7 @@ export class LLMService {
     try {
       const { GeminiBridge } = await import('./geminiBridge.js');
       const text = await GeminiBridge.generateContent({
-        model: model.includes('pro') ? 'gemini-3.1-pro-preview' : 'gemini-3.1-flash-lite',
+        model,
         systemPrompt,
         messages
       });
@@ -113,7 +113,7 @@ export class LLMService {
       console.warn('[LLMService] GeminiBridge error, attempting standard SDK:', err.message);
       if (this.geminiClient) {
         const generativeModel = this.geminiClient.getGenerativeModel({
-          model: 'gemini-1.5-flash',
+          model: config.models.geminiFast,
           systemInstruction: systemPrompt
         });
         const contents = messages.map(msg => {
@@ -201,7 +201,7 @@ export class LLMService {
       try {
         const { GeminiBridge } = await import('./geminiBridge.js');
         const text = await GeminiBridge.generateContent({
-          model: 'gemini-3.1-flash-lite',
+          model: config.models.geminiFast,
           systemPrompt: 'You are an educational assessment evaluator that outputs strictly valid JSON.',
           messages: [{ role: 'user', content: prompt }]
         });
@@ -212,7 +212,7 @@ export class LLMService {
       }
       if (this.geminiClient) {
         try {
-          const model = this.geminiClient.getGenerativeModel({ model: 'gemini-1.5-pro' });
+          const model = this.geminiClient.getGenerativeModel({ model: config.models.geminiFast });
           const res = await model.generateContent(prompt);
           const parsed = this._cleanJson(res.response.text(), null);
           if (parsed) return parsed;

@@ -10,9 +10,36 @@ import { initFullWindowBridge } from './full-window-bridge.js?v=20261113d';
 
 const urlParams = new URLSearchParams(window.location.search);
 const attachmentId = urlParams.get('attachmentId') || 'att-demo-socratic-01';
-const studentSlug = (urlParams.get('studentName') || urlParams.get('login_hint') || 'student').toLowerCase().replace(/[^a-z0-9]+/g, '-');
-const submissionId = urlParams.get('submissionId') || `sub-${attachmentId}-${studentSlug}`;
 const isTeacherPreview = urlParams.get('preview') === 'true';
+
+function resolveInitialStudentName() {
+  const fromUrl = urlParams.get('studentName') || urlParams.get('login_hint') || '';
+  if (fromUrl) return fromUrl;
+  try {
+    const saved = localStorage.getItem('socrates_student_name');
+    if (saved) return saved;
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    const generated = `Student ${rand}`;
+    localStorage.setItem('socrates_student_name', generated);
+    return generated;
+  } catch {
+    return 'Student';
+  }
+}
+
+let activeStudentName = resolveInitialStudentName();
+function getSubmissionId() {
+  const explicit = urlParams.get('submissionId');
+  const slug = String(activeStudentName || 'student').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'student';
+  // If the student name was customized in the UI, key the submission by attachment + student slug so multiple students gather separately
+  if (explicit && !urlParams.get('studentName') && activeStudentName === (urlParams.get('login_hint') || '')) {
+    return explicit;
+  }
+  return explicit && slug === (urlParams.get('studentName') || urlParams.get('login_hint') || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    ? explicit
+    : `sub-${attachmentId}-${slug}`;
+}
+let submissionId = getSubmissionId();
 
 let activityConfig = null;
 let chatHistory = [];
@@ -120,52 +147,23 @@ function isStepByStepWorkShown(answerText = '', priorSteps = [], hasPhoto = fals
 }
 
 /**
- * Strictly verify whether a student's submitted answer matches the problem's targetAnswer
+ * Asks the server whether the answer is correct. The answer key never reaches the browser, so grading
+ * cannot be forged or read from the page. Returns { gradable, correct, showedWork }.
  */
-function isSubmittedAnswerCorrect(studentRaw = '', targetRaw = '') {
-  const s = String(studentRaw || '').trim();
-  const t = String(targetRaw || '').trim();
-  if (!s || !t) return false;
-
-  const stripLatex = str => str
-    .toLowerCase()
-    .replace(/\[handwritten photo(?: attached| solution)?\]/gi, '')
-    .replace(/\$|\\left|\\right|\\cdot|\s+/g, '');
-
-  const ns = stripLatex(s).replace(/^x=/, '');
-  const nt = stripLatex(t).replace(/^x=/, '');
-  if (!ns) return false;
-  if (ns === nt) return true;
-
-  // Single numerical targetAnswer (e.g. "5", "2", "3", "-4", "2.5")
-  if (/^-?\d+(?:\.\d+)?$/.test(t)) {
-    const targetNum = Number(t);
-    const parts = s.split(/(?:=|->|⇒|\\Longrightarrow|\\implies)/);
-    const rhs = parts[parts.length - 1].trim();
-    const rhsClean = stripLatex(rhs).replace(/^x=/, '');
-    if (/^-?\d+(?:\.\d+)?$/.test(rhsClean)) {
-      return Number(rhsClean) === targetNum;
-    }
-    return false;
-  }
-
-  // Multi-part / algebraic targetAnswer (e.g. "x = 2 (reject x = -3)", "2 and Product Law")
-  const mainTargetPart = t.replace(/\([^)]*\)/g, '').trim();
-  const expectedNums = mainTargetPart.match(/-?\d+(?:\.\d+)?/g) || [];
-  if (expectedNums.length > 0) {
-    const allNumsPresent = expectedNums.every(numStr => {
-      const escaped = numStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp(`(?<![\\d.])${escaped}(?![\\d.])`);
-      return re.test(s);
+async function checkAnswerOnServer({ tier, index, answer, steps, hasPhoto }) {
+  try {
+    const res = await fetch(`/api/attachment/${encodeURIComponent(attachmentId)}/check-answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier, index, answer, steps, hasPhoto })
     });
-    if (!allNumsPresent) return false;
-    if (/product/i.test(mainTargetPart) && !/product/i.test(s)) return false;
-    if (/quotient/i.test(mainTargetPart) && !/quotient/i.test(s)) return false;
-    if (/power/i.test(mainTargetPart) && !/power/i.test(s)) return false;
-    return true;
+    const data = await res.json();
+    if (data.success) return data;
+  } catch (err) {
+    console.warn('Answer check failed:', err);
   }
-
-  return ns === nt;
+  // Server unreachable: record the work for the teacher to review, but do not claim it is correct
+  return { gradable: false, correct: false, showedWork: true };
 }
 
 /**
@@ -218,9 +216,21 @@ function updateMasteryAndMilestonesFromSubmissions() {
   const masteryFillEl = document.getElementById('masteryFill');
   if (masteryPercentEl) {
     masteryPercentEl.textContent = `${currentMastery}% (${correctInTier}/${tierTotal} Correct • ${solvedInTier}/${tierTotal} Submitted)`;
+    masteryPercentEl.style.color = currentMastery >= 85
+      ? '#137333'
+      : currentMastery >= 60
+      ? '#1967d2'
+      : solvedInTier > 0 && currentMastery === 0
+      ? '#c5221f'
+      : '#b06000';
   }
   if (masteryFillEl) {
     masteryFillEl.style.width = `${currentMastery}%`;
+    masteryFillEl.style.background = currentMastery >= 85
+      ? '#1e8e3e'
+      : currentMastery >= 60
+      ? '#1a73e8'
+      : '#d93025';
   }
 
   // Milestones advance only when problems are answered CORRECTLY
@@ -466,63 +476,14 @@ async function loadActivityDetails() {
     };
   }
 
-  const defaultMilestones = [
-    'Step 1 (Diagnostic Check): Verify basic logarithm definition ($b^y = x \\Longleftrightarrow \\log_b(x) = y$)',
-    'Step 2 (Power Law): Absorb scalar coefficients into exponents ($2\\log_3(6) = \\log_3(36)$)',
-    'Step 3 (Quotient & Product Laws): Combine same-base logarithms ($\\log_3(36) - \\log_3(4) = \\log_3(9) = 2$)',
-    'Step 4 (Mastery Verification): Solve adaptive problems step by step and check domain restrictions ($x > 0$)'
-  ];
+  // Never substitute another subject's content: missing parts are shown as explicit warnings instead
+  if (!Array.isArray(activityConfig.targetMilestones)) activityConfig.targetMilestones = [];
+  if (typeof activityConfig.courseMaterials !== 'string') activityConfig.courseMaterials = '';
 
-  const defaultReferenceMaterials = `**Reference Sheet: Product, Quotient, and Power Laws of Logarithms (MHF4U Grade 12)**
-
-1. **Product Law**: $\\log_b(xy) = \\log_b(x) + \\log_b(y)$ for $b > 0, b \\neq 1, x > 0, y > 0$
-   Base Example: $\\log_2(4) + \\log_2(8) = \\log_2(4 \\cdot 8) = \\log_2(32) = 5$
-
-2. **Quotient Law**: $\\log_b(x/y) = \\log_b(x) - \\log_b(y)$
-   Base Example: $\\log_3(27) - \\log_3(3) = \\log_3(27/3) = \\log_3(9) = 2$
-
-3. **Power Law**: $\\log_b(x^k) = k \\cdot \\log_b(x)$
-   **Critical Priority Rule**: Always absorb front coefficients using the Power Law BEFORE combining terms with the Quotient or Product Law.
-   Base Multi-Step Example: $2\\log_3(6) - \\log_3(4) = \\log_3(6^2) - \\log_3(4) = \\log_3(36/4) = \\log_3(9) = 2$`;
-
-  if (!Array.isArray(activityConfig.targetMilestones) || activityConfig.targetMilestones.length === 0) {
-    activityConfig.targetMilestones = defaultMilestones;
-  }
-
-  if (!activityConfig.courseMaterials || !activityConfig.courseMaterials.trim()) {
-    activityConfig.courseMaterials = defaultReferenceMaterials;
-    activityConfig.courseMaterialsSource = activityConfig.courseMaterialsSource || 'Teacher Material Studio (MHF4U Reference Sheet)';
-  }
-
-  const hasGenericPlaceholderPool = /Solve step by step using the course reference sheet|Apply the core formula from the reference sheet/i.test(
-    activityConfig.exercisePool?.levelA?.[0]?.problem || ''
-  );
-
-  if (
-    !activityConfig.exercisePool ||
-    (!activityConfig.exercisePool.levelA?.length && !activityConfig.exercisePool.levelB?.length) ||
-    hasGenericPlaceholderPool
-  ) {
-    activityConfig.exercisePool = {
-      diagnostic: [
-        { id: 'diag-1', problem: 'Quick Diagnostic Check: What is the exact value of $\\log_3(9)$, and which rule lets us combine $\\log_3(2) + \\log_3(4.5)$ into a single logarithm?', targetAnswer: '2 and Product Law', hint: 'Ask yourself: $3$ to what power gives $9$?' }
-      ],
-      levelA: [
-        { id: 'A1', problem: 'Simplify into a single logarithm and evaluate: $\\log_2(4) + \\log_2(8)$', targetAnswer: '5', hint: 'Use the Product Law: $\\log_2(4 \\cdot 8) = \\log_2(32) = 5$.' },
-        { id: 'A2', problem: 'Simplify into a single logarithm and evaluate: $\\log_3(27) - \\log_3(3)$', targetAnswer: '2', hint: 'Use the Quotient Law: $\\log_3(27 / 3) = \\log_3(9) = 2$.' },
-        { id: 'A3', problem: 'Rewrite as a single logarithm and evaluate: $2\\log_5(5)$', targetAnswer: '2', hint: 'Use the Power Law: $\\log_5(5^2) = \\log_5(25) = 2$.' }
-      ],
-      levelB: [
-        { id: 'B1', problem: 'Simplify into a single numerical value: $2\\log_3(6) - \\log_3(4)$', targetAnswer: '2', hint: 'Apply the Power Law first: $2\\log_3(6) = \\log_3(36)$, then divide by $4$.' },
-        { id: 'B2', problem: 'Simplify into a single numerical value: $3\\log_2(4) - \\log_2(8)$', targetAnswer: '3', hint: 'Rewrite $3\\log_2(4) = \\log_2(64)$, then apply Quotient Law.' },
-        { id: 'B3', problem: 'Simplify into a single numerical value: $\\frac{1}{2}\\log_4(16) + \\log_4(8)$', targetAnswer: '2', hint: 'Apply Power Law: $\\log_4(\\sqrt{16}) + \\log_4(8) = \\log_4(2) + \\log_4(8) = \\log_4(16)$.' }
-      ],
-      levelC: [
-        { id: 'C1', problem: 'Solve for $x$ and verify domain restrictions ($x > 1$): $\\log_2(x - 1) + \\log_2(x + 2) = 2$', targetAnswer: 'x = 2 (reject x = -3)', hint: 'Combine into $\\log_2((x-1)(x+2)) = 2 \\implies (x-1)(x+2) = 4$.' },
-        { id: 'C2', problem: 'Solve for $x$ and check for extraneous roots: $2\\log_3(x) - \\log_3(x - 2) = 2$', targetAnswer: 'x = 3 or x = 6', hint: 'Rewrite as $\\log_3\\left(\\frac{x^2}{x-2}\\right) = 2 \\implies x^2 = 9(x - 2)$.' },
-        { id: 'C3', problem: 'Solve for $x$ over the valid domain: $\\log_4(x + 3) + \\log_4(x - 3) = 2$', targetAnswer: 'x = 5 (reject x = -5)', hint: 'Combine via Product Law: $\\log_4(x^2 - 9) = 2 \\implies x^2 - 9 = 16$.' }
-      ]
-    };
+  const hasAnyProblems = ['levelA', 'levelB', 'levelC'].some(k => activityConfig.exercisePool?.[k]?.length);
+  if (!hasAnyProblems) {
+    activityConfig.poolMissing = true;
+    activityConfig.exercisePool = { diagnostic: [], levelA: [], levelB: [], levelC: [] };
   }
 
   // Start directly on Problem 1 of the selected tier so the student works on the exact N problems chosen in Teacher View
@@ -642,6 +603,12 @@ function renderReferenceMaterial() {
         if (isHidden) renderMathSafe(contentBox);
       };
     }
+  } else {
+    card.style.display = 'block';
+    sourceLabel.textContent = 'Teacher Material Studio';
+    contentBox.style.display = 'block';
+    contentBox.textContent = 'Your teacher has not attached a reference sheet to this assignment.';
+    if (toggleBtn) toggleBtn.style.display = 'none';
   }
 }
 
@@ -685,6 +652,14 @@ function initializeGreeting() {
     welcomeMsg = `Welcome! 👋 I am **SocratesAI**. Today we are working through **${activityConfig.title}** (${tierTotal} selected problem${tierTotal === 1 ? '' : 's'} in Level ${currentLevel}).\n\nCurrent Problem (**Problem 1 of ${tierTotal} — Level ${currentLevel}**):\n> ${firstProb}`;
   }
 
+  if (activityConfig.poolMissing) {
+    welcomeMsg = `Welcome! 👋 I am **SocratesAI**. Your teacher has not added practice problems to **${activityConfig.title}** yet. You can still chat with me about the topic, but there are no problems to submit. Please ask your teacher to open the Teacher Studio and generate the problem pool.`;
+    const submitBtn = document.getElementById('submitAnswerBottomBtn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'No problems yet';
+    }
+  }
   appendMessage('assistant', welcomeMsg);
   chatHistory.push({ role: 'assistant', content: welcomeMsg });
 }
@@ -949,15 +924,16 @@ function appendMessage(role, content, meta = null, attachments = []) {
 function formatMarkdownAndMath(text) {
   if (!text) return '';
   const normalized = normalizeMathDelimiters(text);
+  const escapeHtml = (str) => str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const segments = normalized.split(/(\$\$[\s\S]+?\$\$|\$[^$\n]+?\$)/g);
   const safeMd = segments.map((seg, idx) => {
-    if (idx % 2 === 1) return seg; // Protect math delimiters and operators (*, _)
-    return seg
+    if (idx % 2 === 1) return escapeHtml(seg); // Protect math delimiters and operators (*, _)
+    return escapeHtml(seg)
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>');
   }).join('');
   return safeMd
-    .replace(/^> (.*$)/gim, '<blockquote style="border-left:3px solid #1a73e8; margin:0.5rem 0; color:#202124; background:#f8f9fa; padding:0.5rem 0.85rem; border-radius:0 6px 6px 0;">$1</blockquote>')
+    .replace(/^&gt; (.*$)/gim, '<blockquote style="border-left:3px solid #1a73e8; margin:0.5rem 0; color:#202124; background:#f8f9fa; padding:0.5rem 0.85rem; border-radius:0 6px 6px 0;">$1</blockquote>')
     .replace(/\n/g, '<br/>');
 }
 
@@ -1083,7 +1059,6 @@ async function submitCurrentProblemAnswer() {
     ? 'Diagnostic Check'
     : `Problem ${currentProblemIndexInTier + 1} of ${tierTotal} (Level ${currentLevel})`;
   const curProblemText = curProbObj?.problem || activityConfig.prompt;
-  const expectedTargetAnswer = curProbObj?.targetAnswer || '';
   const hasPhoto = currentAttachments.length > 0;
 
   // Requirement 4: Enforce step-by-step derivation (reject bare single-number submissions when no prior steps were sent)
@@ -1113,9 +1088,22 @@ async function submitCurrentProblemAnswer() {
     ? `${currentProblemSteps.join(' -> ')} = ${answerText}`
     : (answerText || currentProblemSteps.join(' -> '));
 
-  const isCorrect = isSubmittedAnswerCorrect(combinedStepAnswer, expectedTargetAnswer);
+  const bottomBtnForCheck = document.getElementById('submitAnswerBottomBtn');
+  if (bottomBtnForCheck) {
+    bottomBtnForCheck.disabled = true;
+    bottomBtnForCheck.textContent = '⏳ Checking...';
+  }
+  const verdict = await checkAnswerOnServer({
+    tier: isDiag ? 'DIAG' : currentLevel,
+    index: isDiag ? 0 : currentProblemIndexInTier,
+    answer: answerText,
+    steps: currentProblemSteps,
+    hasPhoto
+  });
+  const isCorrect = verdict.correct;
 
-  if (!isCorrect) {
+  // Problems without an answer key are left for the teacher to review rather than counted as mistakes
+  if (!isCorrect && verdict.gradable) {
     mistakesCount++;
   }
 
@@ -1129,11 +1117,9 @@ async function submitCurrentProblemAnswer() {
     tier: isDiag ? 'DIAG' : currentLevel,
     index: isDiag ? 0 : currentProblemIndexInTier,
     problem: curProblemText,
-    targetAnswer: expectedTargetAnswer,
     answer: combinedStepAnswer || '[Handwritten Photo Solution]',
     steps: [...currentProblemSteps],
     stepsCount: Math.max(1, currentProblemSteps.length),
-    isStepByStep: true,
     hasPhoto,
     isCorrect,
     submittedAt: new Date().toISOString()
@@ -1372,8 +1358,10 @@ async function saveSubmissionState(status = 'IN_PROGRESS') {
   if (userTurns === 0 && photosSubmittedCount === 0 && solvedProblems.size === 0) {
     return;
   }
-  const resolvedStudentName = urlParams.get('studentName') || urlParams.get('login_hint') || 'Student';
-  const resolvedStudentEmail = urlParams.get('login_hint') || '';
+  const resolvedStudentName = (document.getElementById('studentIdentityInput')?.value || activeStudentName || 'Student').trim();
+  const resolvedStudentEmail = /@/.test(resolvedStudentName) ? resolvedStudentName : (urlParams.get('login_hint') || '');
+  activeStudentName = resolvedStudentName;
+  submissionId = getSubmissionId();
   const tierTotal = Math.max(1, getSelectedProblemsForTier(currentLevel).length);
   const solvedList = Array.from(solvedProblems.entries()).map(([key, val]) => ({ key, ...val }));
   try {
@@ -1384,6 +1372,11 @@ async function saveSubmissionState(status = 'IN_PROGRESS') {
         attachmentId,
         studentName: resolvedStudentName,
         studentEmail: resolvedStudentEmail,
+        courseId: urlParams.get('courseId') || undefined,
+        itemId: urlParams.get('itemId') || undefined,
+        classroomSubmissionId: urlParams.get('submissionId') && !urlParams.get('submissionId').startsWith('sub-')
+          ? urlParams.get('submissionId')
+          : undefined,
         status: status === 'SUBMITTED' ? 'TURNED_IN' : status,
         masteryLevel: currentMastery,
         currentLevel,
@@ -1410,6 +1403,18 @@ async function saveSubmissionState(status = 'IN_PROGRESS') {
 }
 
 function setupEventListeners() {
+  const idInput = document.getElementById('studentIdentityInput');
+  if (idInput) {
+    idInput.value = activeStudentName;
+    idInput.addEventListener('change', () => {
+      const nextName = idInput.value.trim();
+      if (nextName && nextName !== activeStudentName) {
+        activeStudentName = nextName;
+        try { localStorage.setItem('socrates_student_name', nextName); } catch {}
+        submissionId = getSubmissionId();
+      }
+    });
+  }
   const backBtn = document.getElementById('backToTeacherStudioBtn');
   if (backBtn && isTeacherPreview) {
     backBtn.style.display = 'inline-flex';

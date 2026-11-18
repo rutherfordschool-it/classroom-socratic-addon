@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -342,7 +342,8 @@ apiRouter.post('/chat', async (req, res) => {
       customContext = {}
     } = req.body;
 
-    // Load attachment details if available, or use customContext
+    // Load the stored lesson plan. The tutor's configuration comes ONLY from the stored attachment, so a
+    // student's browser cannot rewrite the tutor's instructions; only per-session state is taken from the client.
     let activityConfig = {};
     if (attachmentId) {
       const att = classroomService.getAttachment(attachmentId);
@@ -350,23 +351,28 @@ apiRouter.post('/chat', async (req, res) => {
         activityConfig = att;
       }
     }
+    const sessionState = {
+      currentLevel: ['A', 'B', 'C'].includes(customContext.currentLevel) ? customContext.currentLevel : undefined,
+      diagnosticStatus: ['IN_DIAGNOSTIC', 'COMPLETED'].includes(customContext.diagnosticStatus) ? customContext.diagnosticStatus : undefined,
+      studentMode: ['step_by_step', 'solo_answer', 'general_blueprint'].includes(customContext.studentMode) ? customContext.studentMode : undefined
+    };
 
     const merged = {
-      curriculum: customContext.curriculum || activityConfig.curriculum || 'canada',
-      gradeLevel: customContext.gradeLevel || activityConfig.gradeLevel || 'Grade 12',
-      subject: customContext.subject || activityConfig.subject || 'Mathematics',
-      courseName: customContext.courseName || activityConfig.courseName || 'Advanced Functions (MHF4U)',
-      topic: customContext.topic || activityConfig.topic || 'Laws of Logarithms (Quotient, Power, Product)',
-      learningGoal: customContext.learningGoal || activityConfig.learningGoal || 'Master Laws of Logarithms to simplify expressions',
-      overallExpectations: customContext.overallExpectations || activityConfig.overallExpectations || [],
-      specificExpectations: customContext.specificExpectations || activityConfig.specificExpectations || [],
-      studentMode: customContext.studentMode || activityConfig.studentMode || 'step_by_step',
-      currentLevel: customContext.currentLevel || activityConfig.currentLevel || 'B',
-      diagnosticStatus: customContext.diagnosticStatus || 'COMPLETED',
-      targetMilestones: customContext.targetMilestones || activityConfig.targetMilestones || [],
-      courseMaterials: customContext.courseMaterials || activityConfig.courseMaterials || '',
-      referenceExercise: customContext.referenceExercise || activityConfig.referenceExercise || null,
-      levelConfigs: customContext.levelConfigs || activityConfig.levelConfigs || null
+      curriculum: activityConfig.curriculum || customContext.curriculum || 'canada',
+      gradeLevel: activityConfig.gradeLevel || customContext.gradeLevel || 'Grade 12',
+      subject: activityConfig.subject || customContext.subject || 'Mathematics',
+      courseName: activityConfig.courseName || customContext.courseName || 'Advanced Functions (MHF4U)',
+      topic: activityConfig.topic || customContext.topic || 'Laws of Logarithms (Quotient, Power, Product)',
+      learningGoal: activityConfig.learningGoal || customContext.learningGoal || 'Master Laws of Logarithms to simplify expressions',
+      overallExpectations: activityConfig.overallExpectations || [],
+      specificExpectations: activityConfig.specificExpectations || [],
+      studentMode: sessionState.studentMode || activityConfig.studentMode || 'step_by_step',
+      currentLevel: sessionState.currentLevel || activityConfig.currentLevel || 'B',
+      diagnosticStatus: sessionState.diagnosticStatus || 'COMPLETED',
+      targetMilestones: activityConfig.targetMilestones || [],
+      courseMaterials: activityConfig.courseMaterials || '',
+      referenceExercise: activityConfig.referenceExercise || null,
+      levelConfigs: activityConfig.levelConfigs || null
     };
 
     const systemPrompt = SocraticPromptEngine.buildSystemPrompt(merged);
@@ -462,7 +468,10 @@ apiRouter.get('/attachment/bridge-status', handleBridgeStatusRequest);
 apiRouter.get('/bridge-status', handleBridgeStatusRequest);
 
 /**
- * Get attachment details
+ * Get attachment details.
+ * By default the answer key (targetAnswer / hint / solution steps) is STRIPPED so a student's browser never
+ * receives it. Teacher tools that need the keys must ask with ?include=answers.
+ * NOTE: without Google sign-in verification (planned) this is a convention, not an access-control boundary.
  */
 apiRouter.get('/attachment/:id', (req, res) => {
   let attachment = classroomService.getAttachment(req.params.id);
@@ -473,7 +482,46 @@ apiRouter.get('/attachment/:id', (req, res) => {
   if (!attachment) {
     return res.status(404).json({ success: false, error: 'Attachment not found' });
   }
-  res.json({ success: true, attachment });
+  const includeAnswers = req.query.include === 'answers';
+  res.json({
+    success: true,
+    attachment: includeAnswers ? attachment : classroomService.toStudentSafeAttachment(attachment)
+  });
+});
+
+/**
+ * Server-side answer check for one problem. The student's browser sends its answer and receives only
+ * { correct, showedWork } — the answer key never leaves the server.
+ */
+apiRouter.post('/attachment/:id/check-answer', (req, res) => {
+  const { tier = 'A', index = 0, answer = '', steps = [], hasPhoto = false } = req.body || {};
+  const verdict = classroomService.gradeStudentAnswer({
+    attachmentId: req.params.id,
+    tier: String(tier),
+    index: Number(index) || 0,
+    answer: String(answer || '').slice(0, 4000),
+    steps: Array.isArray(steps) ? steps.slice(0, 50).map(s => String(s || '').slice(0, 4000)) : [],
+    hasPhoto: Boolean(hasPhoto)
+  });
+  res.json({
+    success: true,
+    gradable: verdict.gradable,
+    correct: verdict.correct,
+    showedWork: verdict.showedWork
+  });
+});
+
+/**
+ * Where the shared data lives (Google Drive folder) and the results sheet for an assignment
+ */
+apiRouter.get('/storage-info', (req, res) => {
+  res.json({ success: true, storage: classroomService.getStorageInfo() });
+});
+
+apiRouter.get('/attachment/:id/results.csv', (req, res) => {
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="results-${encodeURIComponent(req.params.id)}.csv"`);
+  res.send(classroomService.buildResultsCsv(req.params.id));
 });
 
 /**
@@ -620,11 +668,12 @@ apiRouter.post('/attachment', async (req, res) => {
       const createApiUrl = `${baseApiUrl}?addOnToken=${encodeURIComponent(addOnToken)}`;
       const payload = {
         title: `SocratesAI: ${attachment.title}`,
+        maxPoints: 100,
         studentViewUri: {
-          uri: `https://socrates-classroom-addon-243371665093.us-central1.run.app/student-work.html?attachmentId=${attachment.id}`
+          uri: `${config.baseUrl}/student-work.html?attachmentId=${attachment.id}`
         },
         teacherViewUri: {
-          uri: `https://socrates-classroom-addon-243371665093.us-central1.run.app/teacher-review.html?attachmentId=${attachment.id}`
+          uri: `${config.baseUrl}/teacher-review.html?attachmentId=${attachment.id}`
         }
       };
 
@@ -693,6 +742,15 @@ apiRouter.post('/attachment', async (req, res) => {
 
       classroomApiResult = gData;
       classroomApiAttached = gRes.status < 400 && Boolean(gData && !gData.error);
+      if (classroomApiAttached && gData?.id) {
+        // Remember Classroom's own attachment id: it is required later to send grades back to Classroom
+        attachment.classroomAttachmentId = gData.id;
+        attachment.courseId = courseId;
+        attachment.itemId = itemId;
+        attachment.itemType = itemType;
+        classroomService.attachmentsStore.set(attachment.id, attachment);
+        classroomService.saveStoreToFile();
+      }
 
       if (gRes.status >= 400) {
         return res.json({
@@ -722,8 +780,8 @@ apiRouter.post('/attachment', async (req, res) => {
       courseId,
       itemId,
       addOnToken,
-      studentWorkUrl: `https://socrates-classroom-addon-243371665093.us-central1.run.app/student-work.html?attachmentId=${attachment.id}`,
-      teacherReviewUrl: `https://socrates-classroom-addon-243371665093.us-central1.run.app/teacher-review.html?attachmentId=${attachment.id}`,
+      studentWorkUrl: `${config.baseUrl}/student-work.html?attachmentId=${attachment.id}`,
+      teacherReviewUrl: `${config.baseUrl}/teacher-review.html?attachmentId=${attachment.id}`,
       timestamp: Date.now()
     };
     if (addOnToken) {
@@ -776,29 +834,28 @@ apiRouter.post('/submission/:id/save', (req, res) => {
 apiRouter.post('/grade-passback', async (req, res) => {
   try {
     const {
-      courseId,
-      courseWorkId,
       submissionId,
       assignedGrade,
-      draftGrade,
       teacherComment,
-      addOnToken
+      accessToken = '',
+      loginHint = ''
     } = req.body;
 
+    const grade = Number(assignedGrade);
+    if (!submissionId || !Number.isFinite(grade) || grade < 0 || grade > 100) {
+      return res.status(400).json({ success: false, error: 'A submissionId and a grade between 0 and 100 are required' });
+    }
+
+    // Prefer the token sent by the teacher's browser, otherwise the one cached when they attached the activity
+    const cached = getCachedOAuthToken(loginHint);
     const result = await classroomService.passGradeToClassroom({
-      courseId,
-      courseWorkId,
       submissionId,
-      assignedGrade: Number(assignedGrade),
-      draftGrade: draftGrade ? Number(draftGrade) : Number(assignedGrade),
+      assignedGrade: grade,
       teacherComment,
-      addOnToken
+      accessToken: accessToken || cached?.accessToken || ''
     });
 
-    res.json({
-      success: true,
-      result
-    });
+    res.json({ success: result.success !== false, result });
   } catch (err) {
     res.status(500).json({
       success: false,
@@ -892,7 +949,9 @@ apiRouter.get('/attachment/:id/cohorts', (req, res) => {
     const summary = classroomService.getCohortSummary(req.params.id);
     res.json({
       success: true,
-      ...summary
+      ...summary,
+      storage: classroomService.getStorageInfo(),
+      resultsSheetUrl: classroomService.getResultsSheetUrl(req.params.id)
     });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

@@ -3,10 +3,28 @@ import { config } from '../config.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { checkAnswer, looksLikeWorkStep } from './answerChecker.js';
+import { driveStorage } from './driveStorage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const STORE_FILE_PATH = path.join(__dirname, '../data/classroom_store.json');
+const DRIVE_STORE_NAME = 'socrates-store.json';
+const DRIVE_WRITE_DEBOUNCE_MS = 1500;
+
+/** Answer-key fields that must never be sent to a student's browser. */
+const ANSWER_KEY_FIELDS = ['targetAnswer', 'hint', 'solutionSteps'];
+
+/** Corrected answer keys for problems that shipped with a wrong key in earlier versions. */
+const KNOWN_ANSWER_KEY_FIXES = [
+  {
+    match: /\\frac\{1\}\{2\}\\log_4\(16\)\s*\+\s*\\log_4\(8\)/,
+    targetAnswer: '5/2',
+    hint: 'Power Law: $\\frac{1}{2}\\log_4(16) = \\log_4(4) = 1$. Then $\\log_4(8) = \\frac{3}{2}$ because $4^{3/2} = 8$.'
+  }
+];
+
+const LOG_TOPIC_RE = /\\log|logarithm|log_|\blog\b/i;
 
 /**
  * Service to manage Google Classroom Add-on API interactions.
@@ -20,18 +38,55 @@ export class ClassroomService {
     this.customMaterialsStore = new Map();
     this.savedLessonPlansStore = new Map();
     this.customCurriculaStore = new Map();
+    this.driveWriteTimer = null;
+    this.driveResultsDirty = new Set();
+    this.resultSheetUrls = new Map();
     this.initializeDefaultData();
-    this.loadStoreFromFile();
+    if (config.storageBackend !== 'drive') {
+      this.loadStoreFromFile();
+    }
+  }
+
+  /**
+   * Async initialisation: when running on Cloud Run, loads all state from the shared Google Drive folder.
+   * Must complete before the server starts accepting requests.
+   */
+  async init() {
+    if (config.storageBackend !== 'drive') return;
+    try {
+      await driveStorage.init();
+      const parsed = await driveStorage.readJson(DRIVE_STORE_NAME);
+      if (parsed) {
+        this.applyParsedStore(parsed);
+      } else if (fs.existsSync(STORE_FILE_PATH)) {
+        // First run on Drive: seed from any bundled file
+        this.applyParsedStore(JSON.parse(fs.readFileSync(STORE_FILE_PATH, 'utf-8')));
+        this.saveStoreToFile();
+      }
+    } catch (e) {
+      console.error('[ClassroomService] Google Drive storage unavailable — data will NOT be saved until this is fixed:', e.message);
+      this.storageInitError = e.message;
+      config.storageBackend = 'memory';
+    }
   }
 
   loadStoreFromFile() {
     try {
       if (fs.existsSync(STORE_FILE_PATH)) {
-        const raw = fs.readFileSync(STORE_FILE_PATH, 'utf-8');
-        const parsed = JSON.parse(raw);
+        this.applyParsedStore(JSON.parse(fs.readFileSync(STORE_FILE_PATH, 'utf-8')));
+      }
+    } catch (e) {
+      console.warn('[ClassroomService] Could not load persistent store:', e.message);
+    }
+  }
+
+  applyParsedStore(parsed = {}) {
+    {
+      {
         if (parsed.attachments && Array.isArray(parsed.attachments)) {
           for (const att of parsed.attachments) {
             if (att.id === 'att-demo-socratic-01') continue;
+            this.applyKnownAnswerKeyFixes(att);
             this.attachmentsStore.set(att.id, att);
           }
         }
@@ -42,7 +97,10 @@ export class ClassroomService {
         }
         if (parsed.savedLessonPlans && Array.isArray(parsed.savedLessonPlans)) {
           for (const plan of parsed.savedLessonPlans) {
-            if (plan && plan.id) this.savedLessonPlansStore.set(plan.id, plan);
+            if (plan && plan.id) {
+              this.applyKnownAnswerKeyFixes(plan);
+              this.savedLessonPlansStore.set(plan.id, plan);
+            }
           }
         }
         if (parsed.customCurricula && Array.isArray(parsed.customCurricula)) {
@@ -51,44 +109,161 @@ export class ClassroomService {
           }
         }
         if (parsed.submissions && Array.isArray(parsed.submissions)) {
-          const fakeSeededIds = new Set(['sub-pavel-birulin-01', 'sub-elena-rostova-01', 'sub-alex-chen-01']);
           for (const sub of parsed.submissions) {
-            if (fakeSeededIds.has(sub.submissionId)) continue;
             if (sub.isAutomatedTest) continue;
             const userMsgs = (sub.transcript || []).filter(m => m.role === 'user');
             const solvedCount = Array.isArray(sub.solvedProblems) ? sub.solvedProblems.length : 0;
             if (userMsgs.length === 0 && (sub.photosSubmittedCount || 0) === 0 && solvedCount === 0) continue;
-            sub.aiAnalysis = this.analyzeTranscript(sub);
-            sub.suggestedScore = sub.aiAnalysis.suggestedScore;
-            sub.masteryLevel = sub.aiAnalysis.masteryPercentage;
-            sub.mistakesCount = sub.aiAnalysis.misconceptionsIdentified?.length || 0;
             this.submissionsStore.set(sub.submissionId, sub);
+          }
+          // Re-grade after attachments are loaded so corrected answer keys apply to stored work
+          for (const sub of this.submissionsStore.values()) {
+            this.refreshSubmissionAnalysis(sub);
           }
         }
         console.log(`[ClassroomService] Loaded ${this.attachmentsStore.size} attachments, ${this.submissionsStore.size} submissions, ${this.customMaterialsStore.size} custom materials, and ${this.savedLessonPlansStore.size} saved lesson plans.`);
       }
-    } catch (e) {
-      console.warn('[ClassroomService] Could not load persistent store:', e.message);
     }
   }
 
-  saveStoreToFile() {
+  /** Patches known-wrong answer keys inside an attachment / lesson plan exercise pool. */
+  applyKnownAnswerKeyFixes(holder) {
+    const pool = holder?.exercisePool;
+    if (!pool) return;
+    for (const key of ['diagnostic', 'levelA', 'levelB', 'levelC']) {
+      for (const p of Array.isArray(pool[key]) ? pool[key] : []) {
+        const fix = KNOWN_ANSWER_KEY_FIXES.find(f => f.match.test(String(p.problem || '').replace(/\s+/g, '')) || f.match.test(String(p.problem || '')));
+        if (fix) {
+          p.targetAnswer = fix.targetAnswer;
+          p.hint = fix.hint;
+        }
+      }
+    }
+  }
+
+  refreshSubmissionAnalysis(sub) {
     try {
-      const data = {
-        attachments: Array.from(this.attachmentsStore.values()),
-        submissions: Array.from(this.submissionsStore.values()),
-        customMaterials: Array.from(this.customMaterialsStore.values()),
-        savedLessonPlans: Array.from(this.savedLessonPlansStore.values()),
-        customCurricula: Array.from(this.customCurriculaStore.values())
-      };
+      sub.aiAnalysis = this.analyzeTranscript(sub);
+      sub.suggestedScore = sub.aiAnalysis.suggestedScore;
+      sub.masteryLevel = sub.aiAnalysis.masteryPercentage;
+      sub.mistakesCount = sub.aiAnalysis.misconceptionsIdentified?.length || 0;
+    } catch (e) {
+      console.warn('[ClassroomService] Could not analyse submission', sub?.submissionId, e.message);
+    }
+  }
+
+  buildStoreSnapshot() {
+    return {
+      attachments: Array.from(this.attachmentsStore.values()),
+      submissions: Array.from(this.submissionsStore.values()),
+      customMaterials: Array.from(this.customMaterialsStore.values()),
+      savedLessonPlans: Array.from(this.savedLessonPlansStore.values()),
+      customCurricula: Array.from(this.customCurriculaStore.values())
+    };
+  }
+
+  saveStoreToFile() {
+    if (config.storageBackend === 'drive') {
+      this.scheduleDriveWrite();
+      return;
+    }
+    if (config.storageBackend === 'memory') return;
+    try {
       const dir = path.dirname(STORE_FILE_PATH);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      fs.writeFileSync(STORE_FILE_PATH, JSON.stringify(data, null, 2), 'utf-8');
+      fs.writeFileSync(STORE_FILE_PATH, JSON.stringify(this.buildStoreSnapshot(), null, 2), 'utf-8');
     } catch (e) {
       console.warn('[ClassroomService] Could not save persistent store:', e.message);
     }
+  }
+
+  scheduleDriveWrite() {
+    if (this.driveWriteTimer) return;
+    this.driveWriteTimer = setTimeout(() => {
+      this.driveWriteTimer = null;
+      this.flushToDrive().catch(e => console.warn('[ClassroomService] Drive write failed:', e.message));
+    }, DRIVE_WRITE_DEBOUNCE_MS);
+  }
+
+  /** Writes the full store plus human-readable library items and per-assignment student results into the same Google Drive folder. */
+  async flushToDrive() {
+    if (!driveStorage.ready) return;
+    if (this.driveWriteTimer) {
+      clearTimeout(this.driveWriteTimer);
+      this.driveWriteTimer = null;
+    }
+    const dirty = Array.from(this.driveResultsDirty);
+    this.driveResultsDirty.clear();
+    const snapshot = this.buildStoreSnapshot();
+    await driveStorage.writeJson(DRIVE_STORE_NAME, snapshot);
+    await driveStorage.syncLibraryItemsToDrive(snapshot).catch(e =>
+      console.warn('[ClassroomService] Library sync warning:', e.message)
+    );
+    for (const attachmentId of dirty) {
+      try {
+        const att = this.attachmentsStore.get(attachmentId);
+        const submissions = this.getSubmissionsForAttachment(attachmentId);
+        const url = await driveStorage.writeAssignmentResultsToDrive({
+          attachmentId,
+          title: att?.title || attachmentId,
+          csv: this.buildResultsCsv(attachmentId),
+          submissions
+        });
+        this.resultSheetUrls.set(attachmentId, url);
+      } catch (e) {
+        console.warn(`[ClassroomService] Could not write results to Drive for ${attachmentId}:`, e.message);
+        this.driveResultsDirty.add(attachmentId);
+      }
+    }
+  }
+
+  /** One row per student for an assignment: score, mastery, per-problem outcome, telemetry. */
+  buildResultsCsv(attachmentId) {
+    const esc = (v) => {
+      const s = String(v ?? '').replace(/\r?\n/g, ' ');
+      return /[",]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const subs = this.getSubmissionsForAttachment(attachmentId);
+    const header = [
+      'Assignment', 'Student', 'Email', 'Status', 'Level', 'AI Score (/100)', 'Teacher Grade (/100)', 'Mastery %',
+      'Problems Answered', 'Problems Correct', 'Mistakes', 'Hints Used', 'Photos', 'Active Time (min)',
+      'Submitted At', 'Last Updated', 'Teacher Feedback'
+    ];
+    const rows = subs.map(s => {
+      const att = this.attachmentsStore.get(s.attachmentId);
+      const solved = Array.isArray(s.solvedProblems) ? s.solvedProblems : [];
+      const verdicts = s.aiAnalysis?.perProblem || [];
+      const correct = verdicts.filter(v => v.correct).length;
+      return [
+        att?.title || s.attachmentId || attachmentId || '',
+        s.studentName, s.studentEmail, s.status, s.currentLevel, s.suggestedScore ?? '', s.assignedScore ?? '',
+        s.masteryLevel ?? '', solved.length, correct, s.mistakesCount ?? '', s.hintsUsedCount ?? 0,
+        s.photosSubmittedCount ?? 0, Math.round((s.activeTimeSec || 0) / 60), s.submittedAt || '',
+        s.updatedAt || '', s.teacherFeedback || ''
+      ].map(esc).join(',');
+    });
+    return [header.map(esc).join(','), ...rows].join('\n');
+  }
+
+  getResultsSheetUrl(attachmentId) {
+    return this.resultSheetUrls.get(attachmentId) || (config.storageBackend === 'drive' ? driveStorage.folderUrl : '');
+  }
+
+  getStorageInfo() {
+    const isDrive = config.storageBackend === 'drive';
+    return {
+      backend: config.storageBackend,
+      driveFolderUrl: isDrive ? driveStorage.folderUrl : '',
+      driveName: isDrive ? driveStorage.driveName : '',
+      lastError: driveStorage.lastError || this.storageInitError || '',
+      persisted: isDrive ? !driveStorage.lastError : config.storageBackend === 'file'
+    };
+  }
+
+  markResultsDirty(attachmentId) {
+    if (attachmentId) this.driveResultsDirty.add(attachmentId);
   }
 
   initializeDefaultData() {
@@ -156,7 +331,7 @@ export class ClassroomService {
         levelB: [
           { id: 'B1', problem: 'Simplify into a single numerical value: $2\\log_3(6) - \\log_3(4)$', targetAnswer: '2', hint: 'Apply the Power Law first: $2\\log_3(6) = \\log_3(36)$, then divide by $4$.' },
           { id: 'B2', problem: 'Simplify into a single numerical value: $3\\log_2(4) - \\log_2(8)$', targetAnswer: '3', hint: 'Rewrite $3\\log_2(4) = \\log_2(64)$, then apply Quotient Law.' },
-          { id: 'B3', problem: 'Simplify into a single numerical value: $\\frac{1}{2}\\log_4(16) + \\log_4(8)$', targetAnswer: '2', hint: 'Apply Power Law: $\\log_4(\\sqrt{16}) + \\log_4(8) = \\log_4(2) + \\log_4(8) = \\log_4(16)$.' }
+          { id: 'B3', problem: 'Simplify into a single numerical value: $\\frac{1}{2}\\log_4(16) + \\log_4(8)$', targetAnswer: '5/2', hint: 'Power Law: $\\frac{1}{2}\\log_4(16) = \\log_4(\\sqrt{16}) = \\log_4(4) = 1$. Then $\\log_4(8) = \\frac{3}{2}$ because $4^{3/2} = 8$.' }
         ],
         levelC: [
           { id: 'C1', problem: 'Solve for $x$ and verify domain restrictions ($x > 1$): $\\log_2(x - 1) + \\log_2(x + 2) = 2$', targetAnswer: 'x = 2 (reject x = -3)', hint: 'Combine into $\\log_2((x-1)(x+2)) = 2 \\implies (x-1)(x+2) = 4$.' },
@@ -206,7 +381,7 @@ export class ClassroomService {
         savedAt: defaultAtt.createdAt
       });
     }
-    // Clean initial state: DO NOT seed fake student submissions (Pavel Birulin Ontario High, Elena Rostova, Alex Chen)
+    // Clean initial state: DO NOT seed fake student submissions (Demo Student Ontario High, Elena Rostova, Alex Chen)
   }
 
   /**
@@ -214,8 +389,10 @@ export class ClassroomService {
    */
   clearSubmissions(attachmentId = null) {
     if (!attachmentId) {
+      for (const sub of this.submissionsStore.values()) this.markResultsDirty(sub.attachmentId);
       this.submissionsStore.clear();
     } else {
+      this.markResultsDirty(attachmentId);
       for (const [id, sub] of this.submissionsStore.entries()) {
         if (sub.attachmentId === attachmentId) {
           this.submissionsStore.delete(id);
@@ -231,7 +408,6 @@ export class ClassroomService {
    */
   getSubmissionsForAttachment(attachmentId) {
     const list = [];
-    const allReal = [];
 
     for (const sub of this.submissionsStore.values()) {
       if (sub.isAutomatedTest || sub.isExemplar) continue;
@@ -240,13 +416,12 @@ export class ClassroomService {
       // Only include sessions where a student actually responded or submitted work
       if (userMsgs.length === 0 && (sub.photosSubmittedCount || 0) === 0 && solvedCount === 0) continue;
 
-      allReal.push(sub);
       if (!attachmentId || attachmentId === 'att-demo-socratic-01' || sub.attachmentId === attachmentId) {
         list.push(sub);
       }
     }
 
-    const result = list.length > 0 ? list : allReal;
+    const result = list;
     // Sort newest first
     result.sort((a, b) => new Date(b.updatedAt || b.submittedAt || 0) - new Date(a.updatedAt || a.submittedAt || 0));
 
@@ -254,22 +429,12 @@ export class ClassroomService {
   }
 
   /**
-   * Retrieves a single submission by ID, alias, or student email (always prioritizing the newest attempt)
+   * Retrieves a single submission by ID or student email (always prioritizing the newest attempt)
    */
   getSubmission(submissionId) {
     if (this.submissionsStore.has(submissionId)) {
       return this.submissionsStore.get(submissionId);
     }
-    // Search by alias 'sub-pavel-birulin-live' or email
-    if (submissionId === 'sub-pavel-birulin-live' || submissionId === 'pavel.birulin@gmail.com') {
-      const all = Array.from(this.submissionsStore.values());
-      const pavelSubs = all.filter(s => s.studentEmail === 'pavel.birulin@gmail.com' && !s.isExemplar && s.submissionId !== 'sub-pavel-birulin-01');
-      if (pavelSubs.length > 0) {
-        pavelSubs.sort((a, b) => new Date(b.updatedAt || b.submittedAt || 0) - new Date(a.updatedAt || a.submittedAt || 0));
-        return pavelSubs[0]; // latest live session
-      }
-    }
-    // Search by partial match or student email
     const matches = [];
     for (const sub of this.submissionsStore.values()) {
       if (sub.submissionId === submissionId || sub.studentEmail === submissionId) {
@@ -284,26 +449,102 @@ export class ClassroomService {
   }
 
   /**
-   * Ensures an attachment always has complete targetMilestones, courseMaterials, and non-placeholder exercisePool
+   * Fills in MISSING optional fields of an attachment without ever replacing a teacher's lesson with another subject.
+   * The built-in logarithm pool / reference sheet is only used for logarithm lessons; any other subject with an
+   * empty pool is flagged (`poolMissing`) so the student and teacher see an explicit warning instead of wrong content.
    */
   ensureCompleteAttachment(att) {
     if (!att) return att;
     const def = this.attachmentsStore.get('att-demo-socratic-01');
-    if (!def) return att;
+    if (!def || att.id === def.id) return att;
+
+    const topicText = `${att.title || ''} ${att.topic || ''} ${att.learningGoal || ''}`;
+    const isLogLesson = LOG_TOPIC_RE.test(topicText);
 
     if (!Array.isArray(att.targetMilestones) || att.targetMilestones.length === 0) {
-      att.targetMilestones = [...(def.targetMilestones || [])];
+      att.targetMilestones = isLogLesson
+        ? [...(def.targetMilestones || [])]
+        : [
+            `Step 1 (Recall): State the key definitions and rules for ${att.topic || att.title || 'this topic'}`,
+            'Step 2 (Apply): Use the rule on a guided example, showing every step',
+            'Step 3 (Combine): Solve a multi-step problem and justify each transformation',
+            'Step 4 (Verify): Check the result against the conditions of the problem'
+          ];
     }
     if (!att.courseMaterials || !String(att.courseMaterials).trim()) {
-      att.courseMaterials = def.courseMaterials;
-      att.courseMaterialsSource = att.courseMaterialsSource || def.courseMaterialsSource;
+      if (isLogLesson) {
+        att.courseMaterials = def.courseMaterials;
+        att.courseMaterialsSource = att.courseMaterialsSource || def.courseMaterialsSource;
+      }
     }
     const firstProbA = att.exercisePool?.levelA?.[0]?.problem || '';
     const isPlaceholderPool = /Solve step by step using the course reference sheet|Apply the core formula from the reference sheet/i.test(firstProbA);
-    if (!att.exercisePool || !att.exercisePool.levelA?.length || isPlaceholderPool) {
+    const hasProblems = ['levelA', 'levelB', 'levelC'].some(k => att.exercisePool?.[k]?.length);
+    if (isLogLesson && (!hasProblems || isPlaceholderPool)) {
       att.exercisePool = JSON.parse(JSON.stringify(def.exercisePool));
     }
+    att.poolMissing = !['levelA', 'levelB', 'levelC'].some(k => att.exercisePool?.[k]?.length);
     return att;
+  }
+
+  /**
+   * Returns a deep copy of an attachment that is safe to send to a student's browser: no answer keys, hints
+   * with worked solutions, or reference exercise answers. Grading happens only on the server.
+   */
+  toStudentSafeAttachment(att) {
+    if (!att) return att;
+    const copy = JSON.parse(JSON.stringify(att));
+    const stripList = (list) => (Array.isArray(list) ? list.map(p => {
+      const clean = { ...p };
+      ANSWER_KEY_FIELDS.forEach(f => delete clean[f]);
+      return clean;
+    }) : list);
+    if (copy.exercisePool) {
+      for (const key of ['diagnostic', 'levelA', 'levelB', 'levelC']) {
+        if (copy.exercisePool[key]) copy.exercisePool[key] = stripList(copy.exercisePool[key]);
+      }
+    }
+    delete copy.exerciseBank;
+    if (copy.referenceExercise) {
+      copy.referenceExercise = { ...copy.referenceExercise };
+      ANSWER_KEY_FIELDS.forEach(f => delete copy.referenceExercise[f]);
+    }
+    delete copy.initialHint;
+    delete copy.teacherInstructions;
+    delete copy.teacherTelemetry;
+    return copy;
+  }
+
+  /** Finds the problem definition (with answer key) in the stored pool for a tier + zero-based index. */
+  findPoolProblem(attachment, tier, index) {
+    const pool = attachment?.exercisePool || {};
+    if (tier === 'DIAG') return pool.diagnostic?.[0] || null;
+    const all = Array.isArray(pool[`level${tier}`]) ? pool[`level${tier}`] : [];
+    const selected = all.filter(p => p.selected !== false);
+    const active = selected.length > 0 ? selected : all;
+    return active[index] || null;
+  }
+
+  /**
+   * Server-side check of one answer submitted by a student. Returns whether it is correct and whether the
+   * student actually showed work. The client never sees the answer key.
+   */
+  gradeStudentAnswer({ attachmentId, tier = 'A', index = 0, answer = '', steps = [], hasPhoto = false }) {
+    const attachment = this.getAttachment(attachmentId);
+    const problem = this.findPoolProblem(attachment, tier, Number(index) || 0);
+    const stepList = (Array.isArray(steps) ? steps : []).map(s => String(s || '')).filter(Boolean);
+    const combined = stepList.length > 0 && !stepList.includes(answer)
+      ? `${stepList.join(' -> ')} = ${answer}`
+      : (answer || stepList.join(' -> '));
+    const verdict = checkAnswer(combined, problem?.targetAnswer || '');
+    const showedWork = Boolean(hasPhoto) || stepList.some(looksLikeWorkStep) || looksLikeWorkStep(answer);
+    return {
+      gradable: verdict.gradable,
+      correct: verdict.gradable && verdict.correct && showedWork,
+      valueCorrect: verdict.correct,
+      showedWork,
+      combinedAnswer: combined
+    };
   }
 
   /**
@@ -383,81 +624,25 @@ export class ClassroomService {
   }
 
   /**
-   * Verifies whether a student submitted a step-by-step derivation (or prior steps in chat / photo)
-   * rather than a bare single number with no reasoning.
+   * Verifies the student showed work: a handwritten photo that the server actually received, intermediate steps
+   * with real mathematical content, or a chained derivation. Client-sent flags (hasPhoto, isStepByStep,
+   * stepsCount) are deliberately ignored because a student could forge them.
    */
-  hasStepByStepProof(item = {}) {
+  hasStepByStepProof(item = {}, submission = null) {
     if (!item) return false;
-    if (item.hasPhoto || /\[handwritten photo/i.test(String(item.answer || ''))) return true;
-    if (Number(item.stepsCount) > 0) return true;
-    if (Array.isArray(item.steps) && item.steps.length > 0) return true;
-    if (item.isStepByStep === true) return true;
-
-    const raw = String(item.answer || '').trim();
-    if (!raw) return false;
-
-    const clean = raw
-      .replace(/\$|\\left|\\right|\\cdot|\s+/g, '')
-      .replace(/^x=/i, '')
-      .replace(/^=/, '');
-
-    // If the entire cleaned answer is just a single number (e.g. "5", "2", "-3.5"), it is NOT a step-by-step proof
-    if (/^-?\d+(?:\.\d+)?$/.test(clean)) {
-      return false;
-    }
-
-    // Check if the answer contains an intermediate expression + '=' or '->' or math operations/functions
-    const hasChainOrOps = /=|->|⇒|\\Longrightarrow|\\implies|\\log|\bln\b|\\frac|\\sqrt|[+\-*/^]/.test(raw);
-    return hasChainOrOps;
+    const transcriptHasPhoto = Boolean(submission) && (submission.transcript || []).some(
+      m => m.role === 'user' && Array.isArray(m.attachments) && m.attachments.some(a => a && a.data)
+    );
+    if (item.hasPhoto && transcriptHasPhoto) return true;
+    if (Array.isArray(item.steps) && item.steps.some(looksLikeWorkStep)) return true;
+    return looksLikeWorkStep(item.answer);
   }
 
   /**
-   * Helper to compare a student's submitted answer against a problem's targetAnswer
+   * Compares a student's submitted answer against a problem's targetAnswer (see answerChecker.js)
    */
   isSubmittedAnswerCorrect(studentRaw = '', targetRaw = '') {
-    const s = String(studentRaw || '').trim();
-    const t = String(targetRaw || '').trim();
-    if (!s || !t) return false;
-
-    const stripLatex = str => str
-      .toLowerCase()
-      .replace(/\[handwritten photo(?: attached| solution)?\]/gi, '')
-      .replace(/\$|\\left|\\right|\\cdot|\s+/g, '');
-
-    const ns = stripLatex(s).replace(/^x=/, '');
-    const nt = stripLatex(t).replace(/^x=/, '');
-    if (!ns) return false;
-    if (ns === nt) return true;
-
-    // Single numerical targetAnswer (e.g. "5", "2", "3", "-4", "2.5")
-    if (/^-?\d+(?:\.\d+)?$/.test(t)) {
-      const targetNum = Number(t);
-      const parts = s.split(/(?:=|->|⇒|\\Longrightarrow|\\implies)/);
-      const rhs = parts[parts.length - 1].trim();
-      const rhsClean = stripLatex(rhs).replace(/^x=/, '');
-      if (/^-?\d+(?:\.\d+)?$/.test(rhsClean)) {
-        return Number(rhsClean) === targetNum;
-      }
-      return false;
-    }
-
-    // Multi-part / algebraic targetAnswer (e.g. "x = 2 (reject x = -3)", "2 and Product Law")
-    const mainTargetPart = t.replace(/\([^)]*\)/g, '').trim();
-    const expectedNums = mainTargetPart.match(/-?\d+(?:\.\d+)?/g) || [];
-    if (expectedNums.length > 0) {
-      const allNumsPresent = expectedNums.every(numStr => {
-        const escaped = numStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const re = new RegExp(`(?<![\\d.])${escaped}(?![\\d.])`);
-        return re.test(s);
-      });
-      if (!allNumsPresent) return false;
-      if (/product/i.test(mainTargetPart) && !/product/i.test(s)) return false;
-      if (/quotient/i.test(mainTargetPart) && !/quotient/i.test(s)) return false;
-      if (/power/i.test(mainTargetPart) && !/power/i.test(s)) return false;
-      return true;
-    }
-
-    return ns === nt;
+    return checkAnswer(studentRaw, targetRaw).correct;
   }
 
   /**
@@ -542,29 +727,44 @@ export class ClassroomService {
       const misconceptions = [];
       let correctCount = 0;
 
+      let manualReviewCount = 0;
+      const perProblem = [];
+
       solvedList.forEach((item, idx) => {
         const lookupKey = String(item.key || '').toUpperCase();
         const lookupId = String(item.id || '').toUpperCase();
-        const probDef = problemMap.get(lookupKey) || problemMap.get(lookupId) || activeTierProblems[item.index ?? idx] || null;
+        // The answer key ALWAYS comes from the stored lesson plan, never from data sent by the student's browser
+        const probDef = this.findPoolProblem(attachment, item.tier || activeTier, Number.isInteger(item.index) ? item.index : idx)
+          || problemMap.get(lookupKey) || problemMap.get(lookupId) || null;
         const probLabel = `Problem ${idx + 1}`;
         const studentAns = String(item.answer || '').trim();
-        const expectedAns = item.targetAnswer || probDef?.targetAnswer || '';
-        const rawProbText = item.problem || probDef?.problem || '';
+        const expectedAns = probDef?.targetAnswer || '';
+        const rawProbText = probDef?.problem || item.problem || '';
         const probPrompt = rawProbText ? ` (${rawProbText})` : '';
 
-        const valueMatches = this.isSubmittedAnswerCorrect(studentAns, expectedAns);
-        const stepByStepShown = this.hasStepByStepProof(item);
+        const verdict = checkAnswer(studentAns, expectedAns);
+        const valueMatches = verdict.correct;
+        const stepByStepShown = this.hasStepByStepProof(item, submission);
 
-        if (valueMatches && stepByStepShown) {
+        if (!verdict.gradable) {
+          manualReviewCount++;
+          perProblem.push({ label: probLabel, gradable: false, correct: false });
+          misconceptions.push(
+            `🔎 ${probLabel}${probPrompt}: No automatic answer key for this problem — teacher review required (student answered: "${studentAns}").`
+          );
+        } else if (valueMatches && stepByStepShown) {
           correctCount++;
+          perProblem.push({ label: probLabel, gradable: true, correct: true });
           achieved.push(`✅ ${probLabel}${probPrompt}: Step-by-Step Proof & Final Answer ("${studentAns}") — Verified Correct`);
         } else if (valueMatches && !stepByStepShown) {
+          perProblem.push({ label: probLabel, gradable: true, correct: false });
           misconceptions.push(
             `⚠️ ${probLabel}${probPrompt}: Submitted bare single number ("${studentAns}") without step-by-step derivation. Students must write intermediate steps (e.g., applying the rule before the final number) to prove knowledge.`
           );
         } else {
+          perProblem.push({ label: probLabel, gradable: true, correct: false });
           misconceptions.push(
-            `⚠️ ${probLabel}${probPrompt}: Submitted "${studentAns}" (Expected step-by-step derivation leading to: ${expectedAns || 'valid solution'}).`
+            `⚠️ ${probLabel}${probPrompt}: Submitted "${studentAns}" — this does not match the expected result.`
           );
         }
       });
@@ -583,8 +783,14 @@ export class ClassroomService {
       const answeredCount = solvedList.length;
       const accuracyRatio = answeredCount > 0 ? (correctCount / answeredCount) : 0;
 
-      // Score and Mastery are strictly proportional to CORRECT answers out of totalExpected (0 correct = 0 score)
-      const score = Math.min(100, Math.max(0, Math.round((correctCount / Math.max(1, totalExpected)) * 100)));
+      // Problems without a usable answer key cannot be auto-graded; they are excluded from the denominator
+      // and flagged for the teacher instead of counting as wrong.
+      const ungradableInTier = activeTierProblems.filter(p => !checkAnswer('x', p.targetAnswer || '').gradable).length;
+      const gradableTotal = Math.max(1, totalExpected - ungradableInTier);
+      const needsManualGrading = manualReviewCount > 0 || ungradableInTier >= totalExpected;
+
+      // Score and Mastery are strictly proportional to CORRECT answers out of gradable problems (0 correct = 0 score)
+      const score = Math.min(100, Math.max(0, Math.round((correctCount / gradableTotal) * 100)));
       const mastery = score;
 
       const hintsPenalty = Math.min(25, (submission.hintsUsedCount || 0) * 8);
@@ -598,7 +804,7 @@ export class ClassroomService {
       } else if (correctCount > 0) {
         teacherFeedback = `Good progress, ${studentFirstName}! You solved ${correctCount} of ${totalExpected} problem(s) correctly in Level ${activeTier}. Review the feedback on the remaining problem(s) to reach 100% mastery.`;
       } else {
-        teacherFeedback = `${studentFirstName}, none of the ${answeredCount} submitted answer(s) matched the expected solutions (0% accuracy). Please review the logarithm laws in the reference sheet and work through each step carefully.`;
+        teacherFeedback = `${studentFirstName}, none of the ${answeredCount} submitted answer(s) matched the expected solutions (0% accuracy). Please review the rules in the reference sheet and work through each step carefully.`;
       }
 
       return {
@@ -612,6 +818,8 @@ export class ClassroomService {
         milestonesAchieved: achieved,
         milestonesPending: pending,
         misconceptionsIdentified: misconceptions,
+        perProblem,
+        needsManualGrading,
         suggestedTeacherFeedback: teacherFeedback
       };
     }
@@ -620,8 +828,8 @@ export class ClassroomService {
     const fullText = userMessages.map(m => m.content.toLowerCase()).join(' ');
 
     const hasPowerLaw = /power|exponent|6\s*\^\s*2|36|k\s*\*\s*log/i.test(fullText);
-    const hasQuotientLaw = /quotient|division|divide|36\s*\/\s*4|9/i.test(fullText);
-    const hasFinalEval = /3\s*squared|log_3\(9\)\s*=\s*2|\b2\b|\b5\b|\b3\b/i.test(fullText);
+    const hasQuotientLaw = /quotient|division|divide|36\s*\/\s*4/i.test(fullText);
+    const hasFinalEval = /3\s*squared|log_3\(9\)\s*=\s*2/i.test(fullText);
 
     const achieved = [];
     const pending = [];
@@ -650,13 +858,13 @@ export class ClassroomService {
       summary = `Student sent ${userMessages.length} chat message(s), but they did not contain mathematical steps or submitted problem answers.`;
       teacherFeedback = `${studentFirstName}, please complete the problem steps and use the Submit Answer button to turn in your solution for each problem.`;
     } else if (achieved.length >= 3) {
-      score = Math.max(90, mastery);
-      mastery = Math.max(90, mastery);
+      score = Math.min(50, Math.max(90, mastery));
+      mastery = Math.min(50, Math.max(90, mastery));
       summary = `${studentDisplayName} demonstrated clear step-by-step reasoning across ${userMessages.length} Socratic dialogue response(s).`;
       teacherFeedback = `Great reasoning in the Socratic dialogue, ${studentFirstName}!`;
     } else if (achieved.length >= 1) {
-      score = Math.max(60 + achieved.length * 10, mastery);
-      mastery = Math.max(50 + achieved.length * 15, mastery);
+      score = Math.min(50, Math.max(60 + achieved.length * 10, mastery));
+      mastery = Math.min(50, Math.max(50 + achieved.length * 15, mastery));
       summary = `${studentDisplayName} made partial progress in the Socratic dialogue, achieving ${achieved.length} milestone(s).`;
       teacherFeedback = `Good start on the Socratic steps, ${studentFirstName}. Be sure to click Submit Answer for each problem in the set.`;
     } else {
@@ -693,13 +901,18 @@ export class ClassroomService {
       transcript: []
     };
 
+    // Fields derived or owned by the server/teacher can never be set by the student's browser
+    const PROTECTED = ['aiAnalysis', 'suggestedScore', 'masteryLevel', 'assignedScore', 'teacherFeedback', 'gradePassedBackAt', 'gradePassedBackLive'];
+    const safeUpdate = { ...updateData };
+    PROTECTED.forEach(f => delete safeUpdate[f]);
+
     const updated = {
       ...existing,
-      ...updateData,
+      ...safeUpdate,
       updatedAt: new Date().toISOString()
     };
 
-    // Auto-analyze transcript & solvedProblems
+    // Auto-analyze transcript & solvedProblems (the server grades against the stored answer key)
     const userMessages = (updated.transcript || []).filter(m => m.role === 'user');
     const solvedCount = Array.isArray(updated.solvedProblems) ? updated.solvedProblems.length : 0;
     if (userMessages.length > 0 || solvedCount > 0 || (updated.photosSubmittedCount || 0) > 0) {
@@ -713,70 +926,84 @@ export class ClassroomService {
     }
 
     this.submissionsStore.set(submissionId, updated);
+    this.markResultsDirty(updated.attachmentId);
     this.saveStoreToFile();
     return updated;
   }
 
   /**
-   * Performs grade passback to Google Classroom.
-   * If real OAuth credentials and addOnToken are supplied, calls Classroom API.
-   * Otherwise, updates internal state and returns success confirmation.
+   * Records the teacher's grade and, when possible, writes it to Google Classroom through the Add-ons API
+   * (courses.courseWork.addOnAttachments.studentSubmissions.patch → pointsEarned).
+   * The result states honestly whether Classroom was updated (liveApi) or only the local/Drive record.
    */
-  async passGradeToClassroom({
-    courseId,
-    courseWorkId,
-    submissionId,
-    assignedGrade,
-    draftGrade,
-    teacherComment,
-    addOnToken
-  }) {
-    // If real Google OAuth credentials exist, execute actual Classroom API request
-    if (config.googleClientId && addOnToken) {
+  async passGradeToClassroom({ submissionId, assignedGrade, teacherComment = '', accessToken = '' }) {
+    const submission = this.getSubmission(submissionId);
+    if (!submission) {
+      return { success: false, liveApi: false, message: `Submission ${submissionId} was not found.` };
+    }
+
+    // Always record the grade + comment first so it is saved to Drive even if Classroom is unreachable
+    submission.assignedScore = assignedGrade;
+    submission.teacherFeedback = teacherComment;
+    submission.gradePassedBackAt = new Date().toISOString();
+    submission.gradePassedBackLive = false;
+    this.submissionsStore.set(submission.submissionId, submission);
+
+    const attachment = this.attachmentsStore.get(submission.attachmentId);
+    const courseId = submission.courseId || attachment?.courseId;
+    const itemId = submission.itemId || attachment?.itemId;
+    const classroomAttachmentId = attachment?.classroomAttachmentId;
+    const classroomSubmissionId = submission.classroomSubmissionId;
+
+    let result = {
+      success: true,
+      liveApi: false,
+      assignedGrade,
+      teacherComment,
+      timestamp: submission.gradePassedBackAt
+    };
+
+    const missing = [];
+    if (!accessToken) missing.push('a Google sign-in (teacher access token)');
+    if (!courseId || !itemId) missing.push('the Classroom course/assignment');
+    if (!classroomAttachmentId) missing.push('the Classroom attachment id');
+    if (!classroomSubmissionId) missing.push('the Classroom student submission id (the student must open the work from Classroom)');
+
+    if (missing.length === 0) {
       try {
         const oauth2Client = new google.auth.OAuth2();
-        oauth2Client.setCredentials({ access_token: addOnToken });
+        oauth2Client.setCredentials({ access_token: accessToken });
         const classroom = google.classroom({ version: 'v1', auth: oauth2Client });
-
-        const patchRes = await classroom.courses.courseWork.studentSubmissions.patch({
+        const patchRes = await classroom.courses.courseWork.addOnAttachments.studentSubmissions.patch({
           courseId,
-          courseWorkId,
-          id: submissionId,
-          updateMask: 'assignedGrade,draftGrade',
-          requestBody: {
-            assignedGrade: assignedGrade,
-            draftGrade: draftGrade || assignedGrade
-          }
+          itemId,
+          attachmentId: classroomAttachmentId,
+          submissionId: classroomSubmissionId,
+          updateMask: 'pointsEarned',
+          requestBody: { pointsEarned: Number(assignedGrade) }
         });
-
-        return {
-          success: true,
+        submission.gradePassedBackLive = true;
+        result = {
+          ...result,
           liveApi: true,
+          message: `Grade ${assignedGrade} sent to Google Classroom for ${submission.studentName || 'student'}.`,
           result: patchRes.data
         };
       } catch (err) {
         console.warn('[ClassroomService] Classroom API grade passback error:', err.message);
+        result.message = `Grade saved, but Google Classroom rejected the update: ${err.message}`;
+        result.classroomError = err.message;
       }
+    } else {
+      result.message = `Grade saved to the results sheet. Not sent to Google Classroom — missing ${missing.join(', ')}.`;
+      result.missing = missing;
     }
 
-    // Local / Simulator / Dev fallback
-    const submission = this.submissionsStore.get(submissionId);
-    if (submission) {
-      submission.assignedScore = assignedGrade;
-      submission.teacherFeedback = teacherComment;
-      submission.gradePassedBackAt = new Date().toISOString();
-      this.submissionsStore.set(submissionId, submission);
-    }
-
-    return {
-      success: true,
-      liveApi: false,
-      message: `Grade of ${assignedGrade}/100 successfully recorded and passed back for submission ${submissionId}`,
-      assignedGrade,
-      teacherComment,
-      timestamp: new Date().toISOString()
-    };
+    this.markResultsDirty(submission.attachmentId);
+    this.saveStoreToFile();
+    return result;
   }
+
 
   /**
    * Computes automatic student performance cohorts (Group C / Group B / Group A) and class telemetry

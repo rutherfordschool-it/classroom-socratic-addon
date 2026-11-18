@@ -1830,7 +1830,7 @@ function buildPayloadFromForm() {
         selectedPool[key] = [
           { id: 'B1', problem: 'Simplify into a single numerical value: $2\\log_3(6) - \\log_3(4)$', targetAnswer: '2', hint: 'Apply the Power Law first: $2\\log_3(6) = \\log_3(36)$, then divide by $4$.' },
           { id: 'B2', problem: 'Simplify into a single numerical value: $3\\log_2(4) - \\log_2(8)$', targetAnswer: '3', hint: 'Rewrite $3\\log_2(4) = \\log_2(64)$, then apply Quotient Law.' },
-          { id: 'B3', problem: 'Simplify into a single numerical value: $\\frac{1}{2}\\log_4(16) + \\log_4(8)$', targetAnswer: '2', hint: 'Apply Power Law: $\\log_4(\\sqrt{16}) + \\log_4(8) = \\log_4(2) + \\log_4(8) = \\log_4(16)$.' }
+          { id: 'B3', problem: 'Simplify into a single numerical value: $\\frac{1}{2}\\log_4(16) + \\log_4(8)$', targetAnswer: '5/2', hint: 'Power Law: $\\frac{1}{2}\\log_4(16) = \\log_4(4) = 1$. Then $\\log_4(8) = \\frac{3}{2}$ because $4^{3/2} = 8$.' }
         ];
       } else {
         selectedPool[key] = [

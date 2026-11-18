@@ -10,9 +10,9 @@
     itemId: urlParams.get('itemId') || 'assignment-55102',
     itemType: urlParams.get('itemType') || 'courseWork',
     attachmentId: urlParams.get('attachmentId') || 'att-demo-socratic-01',
-    submissionId: urlParams.get('submissionId') || 'sub-pavel-birulin-live',
+    submissionId: urlParams.get('submissionId') || 'sub-demo-student-live',
     addOnToken: urlParams.get('addOnToken') || 'mock-addon-token-xyz',
-    login_hint: urlParams.get('login_hint') || 'pavel.birulin@gmail.com'
+    login_hint: urlParams.get('login_hint') || 'demo.student@example.com'
   };
 
   const classroomAddons = {
