@@ -68,6 +68,23 @@ let hintsUsedCount = 0;
 let repetitionsCount = 1;
 let photosSubmittedCount = 0;
 
+// Anti-AI Verified Workbench Regime State (Timer-Free Deictic Token + Dynamic Mid-Problem Mutation)
+let antiAiSelectedToken = null; // { id: 'Token A', badge: '🔵 Token A', expr: '...' }
+let antiAiSelectedRule = null;  // string
+let antiAiDeicticStepSent = false;
+let antiAiMutationTwistUnlocked = false;
+let antiAiMutationTwistDone = false;
+let antiAiProblemKey = '';
+let antiAiTelemetry = {
+  regimeActive: false,
+  tokenSelectionsCount: 0,
+  ruleSelectionsCount: 0,
+  deicticStepsCompleted: 0,
+  mutationTwistsVerified: 0,
+  pasteEventsCount: 0,
+  tabSwitchesCount: 0
+};
+
 // Pending Handwritten Photo Attachment State
 let pendingPhotoAttachment = null; // { mimeType: 'image/jpeg', data: 'data:image/jpeg;base64,...', label: '' }
 let studentMobileToken = null;
@@ -370,6 +387,247 @@ function syncCurrentProblemUI() {
 
   updateProgressionPills();
   updateTelemetryHUD();
+  syncAntiAiWorkbenchUI();
+}
+
+/**
+ * Extracts 2-3 clickable color-coded Deictic Tokens (Token A, Token B, Token C) from the active problem
+ * so chat bubbles can refer to "Token A" and "Token B" without repeating the full scannable formula.
+ */
+function extractProblemTokensForWorkbench(problemText = '') {
+  const raw = String(problemText || '').trim();
+  const mathMatches = [...raw.matchAll(/\$([^$]+)\$/g)].map(m => m[1].trim()).filter(Boolean);
+  let parts = [];
+
+  if (mathMatches.length === 1) {
+    // Split a single expression like "2\log_3(6) - \log_3(4)" into distinct algebraic terms
+    const single = mathMatches[0];
+    const splitTerms = single
+      .split(/\s+(?=[+\-=]|\\Longleftrightarrow|\\Longrightarrow)\s*|\s*(?<=[+\-=])\s+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (splitTerms.length >= 2) {
+      parts = splitTerms.slice(0, 3).map(t => `$${t}$`);
+    } else {
+      parts = [`$${single}$`];
+    }
+  } else if (mathMatches.length >= 2) {
+    parts = mathMatches.slice(0, 3).map(t => `$${t}$`);
+  }
+
+  if (parts.length < 2) {
+    // Fallback: split problem sentence into meaningful clauses or given quantities
+    const clauses = raw
+      .replace(/^Simplify[^:]*:\s*/i, '')
+      .split(/[,;.]|\band\b|\bwith\b|\bwhere\b/i)
+      .map(s => s.trim())
+      .filter(s => s.length > 2);
+    for (const c of clauses) {
+      if (parts.length >= 3) break;
+      if (!parts.includes(c)) parts.push(c.length > 48 ? `${c.slice(0, 45)}...` : c);
+    }
+  }
+
+  while (parts.length < 2) {
+    parts.push(parts.length === 0 ? 'First Given Term' : 'Second Term / Target Condition');
+  }
+
+  const palette = [
+    { id: 'Token A', badge: '🔵 Token A', bg: '#eff6ff', border: '#3b82f6', activeBg: '#1d4ed8', color: '#1e40af' },
+    { id: 'Token B', badge: '🟠 Token B', bg: '#fffbeb', border: '#f59e0b', activeBg: '#d97706', color: '#92400e' },
+    { id: 'Token C', badge: '🟣 Token C', bg: '#f5f3ff', border: '#8b5cf6', activeBg: '#6d28d9', color: '#5b21b6' }
+  ];
+
+  return parts.slice(0, 3).map((expr, idx) => ({
+    ...palette[idx],
+    expr
+  }));
+}
+
+function getRuleChipsForCurrentTopic() {
+  const ctx = `${activityConfig?.title || ''} ${activityConfig?.topic || ''} ${activityConfig?.subject || ''} ${activityConfig?.prompt || ''}`.toLowerCase();
+  if (/log|ln|exponent/.test(ctx)) {
+    return [
+      'Power Law (k·log_b(x) → log_b(x^k))',
+      'Quotient Law (log_b(M) − log_b(N) → M/N)',
+      'Product Law (log_b(M) + log_b(N) → M·N)',
+      'Base Definition & Domain Check (b^y = x)'
+    ];
+  }
+  if (/quadratic|vertex|square|factor|polynomial|cubic/.test(ctx)) {
+    return [
+      'Factor Out Leading Coefficient',
+      'Complete the Square ((b/2)²)',
+      'Factor Theorem / Zero Product Root',
+      'Sign Chart & Interval Test'
+    ];
+  }
+  if (/asymptote|rational|derivative|chain rule|calculus|limit|binomial|trig|radian|vector/.test(ctx)) {
+    return [
+      'Chain / Power Differentiation Rule',
+      'Leading Term / Asymptote Ratio',
+      'Pythagorean / Trig Identity Substitution',
+      'Domain Restriction & Boundary Check'
+    ];
+  }
+  if (/stoichiometr|mol|limiting|reactant|chemist/.test(ctx)) {
+    return [
+      'Molar Mass Conversion (g → mol)',
+      'Balanced Stoichiometric Mole Ratio',
+      'Limiting Reactant Comparison',
+      'Theoretical Yield Conversion'
+    ];
+  }
+  if (/photosynthes|calvin|atp|nadph|biolog|cell/.test(ctx)) {
+    return [
+      'Thylakoid Light-Dependent Reaction',
+      'ATP & NADPH Energy Carrier Transfer',
+      'Calvin Cycle Carbon Fixation',
+      'Limiting Environmental Factor Check'
+    ];
+  }
+  if (/newton|force|free-body|inclined|physic|acceler/.test(ctx)) {
+    return [
+      'Free-Body Force Component Split',
+      'Newton Second Law (ΣF = m·a)',
+      'Normal & Friction Force Relation',
+      'Kinematic / Energy Conservation'
+    ];
+  }
+  return [
+    'Rule 1: Isolate & Transform First Term',
+    'Rule 2: Apply Core Reference Principle',
+    'Rule 3: Combine Intermediate Terms',
+    'Rule 4: Verify Units & Constraints'
+  ];
+}
+
+function syncAntiAiWorkbenchUI(forceReset = false) {
+  const panel = document.getElementById('antiAiWorkbenchPanel');
+  if (!panel) return;
+
+  const isShieldMode = activityConfig?.studentMode === 'anti_ai_shield';
+  if (!isShieldMode || allProblemsCompleted) {
+    panel.style.display = 'none';
+    return;
+  }
+
+  antiAiTelemetry.regimeActive = true;
+  panel.style.display = 'block';
+
+  const curKey = diagnosticStatus === 'IN_DIAGNOSTIC' ? 'DIAG' : `${currentLevel}${currentProblemIndexInTier + 1}`;
+  if (forceReset || antiAiProblemKey !== curKey) {
+    antiAiProblemKey = curKey;
+    antiAiSelectedToken = null;
+    antiAiSelectedRule = null;
+    antiAiDeicticStepSent = false;
+    antiAiMutationTwistUnlocked = false;
+    antiAiMutationTwistDone = false;
+  }
+
+  const tokens = extractProblemTokensForWorkbench(activityConfig?.prompt || '');
+  const rules = getRuleChipsForCurrentTopic();
+
+  const tokensContainer = document.getElementById('antiAiTokensContainer');
+  if (tokensContainer) {
+    tokensContainer.innerHTML = '';
+    tokens.forEach(tk => {
+      const isSelected = antiAiSelectedToken?.id === tk.id;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.style.cssText = `
+        display:inline-flex; align-items:center; gap:0.4rem; padding:0.32rem 0.7rem;
+        border-radius:999px; font-size:0.76rem; font-weight:700; cursor:pointer;
+        background:${isSelected ? tk.activeBg : tk.bg};
+        color:${isSelected ? '#ffffff' : tk.color};
+        border:2px solid ${tk.border};
+        box-shadow:${isSelected ? '0 2px 6px rgba(0,0,0,0.18)' : 'none'};
+        transition:all 0.15s ease;
+      `;
+      btn.innerHTML = `<span>${tk.badge}:</span> <span class="wysiwyg-math-block">${formatMarkdownAndMath(tk.expr)}</span>`;
+      btn.addEventListener('click', () => {
+        antiAiSelectedToken = tk;
+        antiAiTelemetry.tokenSelectionsCount++;
+        syncAntiAiWorkbenchUI(false);
+      });
+      tokensContainer.appendChild(btn);
+      renderMathSafe(btn);
+    });
+  }
+
+  const rulesContainer = document.getElementById('antiAiRulesContainer');
+  if (rulesContainer) {
+    rulesContainer.innerHTML = '';
+    rules.forEach(ruleName => {
+      const isSelected = antiAiSelectedRule === ruleName;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.style.cssText = `
+        padding:0.28rem 0.65rem; border-radius:6px; font-size:0.74rem; font-weight:600; cursor:pointer;
+        background:${isSelected ? '#7c3aed' : '#ffffff'};
+        color:${isSelected ? '#ffffff' : '#374151'};
+        border:1.5px solid ${isSelected ? '#6d28d9' : '#d1d5db'};
+        transition:all 0.15s ease;
+      `;
+      btn.textContent = `${isSelected ? '✓ ' : ''}${ruleName}`;
+      btn.addEventListener('click', () => {
+        antiAiSelectedRule = ruleName;
+        antiAiTelemetry.ruleSelectionsCount++;
+        syncAntiAiWorkbenchUI(false);
+      });
+      rulesContainer.appendChild(btn);
+    });
+  }
+
+  // Update stage badges
+  const b1 = document.getElementById('antiAiStageBadge1');
+  const b2 = document.getElementById('antiAiStageBadge2');
+  const b3 = document.getElementById('antiAiStageBadge3');
+  const hasAnchor = Boolean(antiAiSelectedToken && antiAiSelectedRule);
+
+  const styleBadge = (el, done, active) => {
+    if (!el) return;
+    if (done) {
+      el.style.background = '#dcfce7';
+      el.style.color = '#15803d';
+      el.style.borderColor = '#86efac';
+    } else if (active) {
+      el.style.background = '#ede9fe';
+      el.style.color = '#6d28d9';
+      el.style.borderColor = '#a78bfa';
+    } else {
+      el.style.background = '#ffffff';
+      el.style.color = '#6b7280';
+      el.style.borderColor = '#d1d5db';
+    }
+  };
+
+  styleBadge(b1, hasAnchor, !hasAnchor);
+  styleBadge(b2, antiAiDeicticStepSent, hasAnchor && !antiAiDeicticStepSent);
+  styleBadge(b3, antiAiMutationTwistDone, antiAiMutationTwistUnlocked && !antiAiMutationTwistDone);
+
+  const promptTextEl = document.getElementById('antiAiDeicticPromptText');
+  const twistBoxEl = document.getElementById('antiAiMutationTwistBox');
+  if (promptTextEl) {
+    if (!hasAnchor) {
+      promptTextEl.innerHTML = '👆 <strong>Action Required:</strong> Click the <strong>Token (🔵 Token A / 🟠 Token B)</strong> and the <strong>Reference Rule Chip</strong> above to unlock your context-split Socratic micro-step.';
+    } else if (!antiAiDeicticStepSent) {
+      promptTextEl.innerHTML = `🎯 <strong>Context-Split Deictic Step (${antiAiSelectedToken.badge} • ${antiAiSelectedRule}):</strong> Apply your selected rule to <strong>${antiAiSelectedToken.badge}</strong> only. What does just <strong>${antiAiSelectedToken.badge}</strong> transform into? Type that micro-step below and click <strong>💬 Send Step</strong>.`;
+    } else {
+      promptTextEl.innerHTML = `✅ <strong>Step 1 Anchor Verified (${antiAiSelectedToken.badge} • ${antiAiSelectedRule})</strong>`;
+    }
+  }
+
+  if (twistBoxEl) {
+    if (antiAiMutationTwistUnlocked) {
+      twistBoxEl.style.display = 'block';
+      twistBoxEl.innerHTML = antiAiMutationTwistDone
+        ? '🛡️ <strong>Mid-Problem Verification Twist Completed!</strong> You may now enter your complete step-by-step chain and click <strong>✅ Submit Answer</strong>.'
+        : `🔄 <strong>Live Mid-Problem Verification Twist (Anti-Solver Check):</strong> Before submitting, explain in 5–15 plain words why a classmate cannot simply combine <strong>${antiAiSelectedToken?.badge || '🔵 Token A'}</strong> and <strong>🟠 Token B</strong> without applying <strong>${antiAiSelectedRule || 'the selected rule'}</strong> first, then send or include your combined step!`;
+    } else {
+      twistBoxEl.style.display = 'none';
+    }
+  }
 }
 
 /**
@@ -949,6 +1207,33 @@ async function sendMessage(overrideText = null) {
   }
   if (!text) return;
 
+  // Anti-AI Verified Workbench Guard: Require Token & Rule Chip selection before sending a step
+  if (activityConfig?.studentMode === 'anti_ai_shield' && !overrideText) {
+    if (!antiAiSelectedToken || !antiAiSelectedRule) {
+      const panel = document.getElementById('antiAiWorkbenchPanel');
+      if (panel) {
+        panel.style.boxShadow = '0 0 0 3px #ef4444';
+        setTimeout(() => { panel.style.boxShadow = 'none'; }, 2200);
+      }
+      appendMessage(
+        'assistant',
+        '🛡️ **Anti-AI Workbench Selection Required:** Please click **1a. The Problem Token (`🔵 Token A` / `🟠 Token B`)** and **1b. The Reference Rule Chip** in the purple Workbench panel above before sending your step!'
+      );
+      return;
+    }
+
+    if (!antiAiDeicticStepSent) {
+      antiAiDeicticStepSent = true;
+      antiAiMutationTwistUnlocked = true;
+      antiAiTelemetry.deicticStepsCompleted++;
+    } else if (antiAiMutationTwistUnlocked && !antiAiMutationTwistDone) {
+      antiAiMutationTwistDone = true;
+      antiAiTelemetry.mutationTwistsVerified++;
+    }
+    syncAntiAiWorkbenchUI(false);
+    text = `[Anti-AI Workbench: Token=${antiAiSelectedToken.badge}, Rule=${antiAiSelectedRule}] ${text}`;
+  }
+
   if (!overrideText) {
     lastUserStepForCurrentProblem = text;
     currentProblemSteps.push(text);
@@ -1032,6 +1317,29 @@ async function submitCurrentProblemAnswer() {
   if (!answerText && !pendingPhotoAttachment) {
     appendMessage('assistant', '⚠️ Please type your answer or solution step in the chat box below (or attach a **📷 Photo Sheet**) before clicking **✅ Submit Answer**.');
     return;
+  }
+
+  // Anti-AI Verified Workbench Guard on Final Submit: require Workbench Token+Rule anchor and at least 1 deictic step
+  if (activityConfig?.studentMode === 'anti_ai_shield' && !pendingPhotoAttachment) {
+    if (!antiAiSelectedToken || !antiAiSelectedRule) {
+      appendMessage(
+        'assistant',
+        '🛡️ **Anti-AI Workbench Anchor Required:** In **Anti-AI Verified Regime**, you must first select the **Problem Token (`🔵 Token A` / `🟠 Token B`)** and **Reference Rule Chip** in the Workbench panel above and send your deictic micro-step via **💬 Send Step** before submitting the final answer.'
+      );
+      return;
+    }
+    if (!antiAiDeicticStepSent) {
+      appendMessage(
+        'assistant',
+        `🛡️ **Deictic Micro-Step Required First:** You anchored **${antiAiSelectedToken.badge}** with **${antiAiSelectedRule}**. Click **💬 Send Step** first to verify how **${antiAiSelectedToken.badge}** transforms and unlock the Mid-Problem Verification Twist before clicking **✅ Submit Answer**!`
+      );
+      return;
+    }
+    if (antiAiMutationTwistUnlocked && !antiAiMutationTwistDone) {
+      antiAiMutationTwistDone = true;
+      antiAiTelemetry.mutationTwistsVerified++;
+      syncAntiAiWorkbenchUI(false);
+    }
   }
 
   // Clear chat input
@@ -1392,6 +1700,10 @@ async function saveSubmissionState(status = 'IN_PROGRESS') {
         solvedProblems: solvedList,
         photosSubmittedCount,
         studentMode: activityConfig.studentMode || 'step_by_step',
+        antiAiTelemetry: {
+          ...antiAiTelemetry,
+          regimeActive: activityConfig.studentMode === 'anti_ai_shield' || antiAiTelemetry.regimeActive
+        },
         turnsCount: userTurns,
         transcript: chatHistory,
         submittedAt: status === 'SUBMITTED' ? new Date().toISOString() : null
@@ -1433,8 +1745,24 @@ function setupEventListeners() {
 
   document.getElementById('studentModeSwitcher')?.addEventListener('change', (e) => {
     activityConfig.studentMode = e.target.value;
-    const modeLabel = e.target.value === 'independent' ? 'Independent Solution + Final Verification' : 'Step-by-Step Socratic Dialogue';
+    const modeLabels = {
+      step_by_step: 'Step-by-Step Socratic Dialogue',
+      independent: 'Independent Solution + Final Verification',
+      anti_ai_shield: '🛡️ Anti-AI Verified Workbench Regime (Deictic Tokens + Dynamic Mid-Problem Mutation)'
+    };
+    const modeLabel = modeLabels[e.target.value] || 'Step-by-Step Socratic Dialogue';
+    syncAntiAiWorkbenchUI(true);
     appendMessage('assistant', `🔄 Switched guidance mode to: **${modeLabel}**.`);
+  });
+
+  // Passive Anti-AI Authenticity Telemetry (Paste & Tab Switch Tracking)
+  document.addEventListener('paste', () => {
+    antiAiTelemetry.pasteEventsCount++;
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      antiAiTelemetry.tabSwitchesCount++;
+    }
   });
 
   document.getElementById('generateSimilarBtn')?.addEventListener('click', () => {

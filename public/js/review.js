@@ -183,11 +183,14 @@ function renderAllStudentsResultsTable() {
     const mistakes = sub.mistakesCount ?? (sub.aiAnalysis?.misconceptionsIdentified?.length || 0);
     const hints = sub.hintsUsedCount ?? 0;
     const scoreColor = aiScore >= 85 ? '#137333' : aiScore >= 60 ? '#1967d2' : '#c5221f';
+    const antiAiBadge = (sub.studentMode === 'anti_ai_shield' || sub.antiAiTelemetry?.regimeActive)
+      ? `<span class="badge" style="background:#f3e8ff; color:#6d28d9; border:1px solid #c4b5fd; font-size:0.65rem; margin-left:4px;" title="Anti-AI Verified Workbench Regime">🛡️ Anti-AI</span>`
+      : '';
 
     return `
       <tr class="student-result-row" data-sub-id="${escapeHtml(sub.submissionId)}" style="cursor:pointer; border-bottom:1px solid #dadce0; background:${isSelected ? '#e8f0fe' : '#ffffff'};">
         <td style="padding:0.55rem 0.75rem; font-weight:600; color:#202124;">
-          ${escapeHtml(sub.studentName || 'Student')}
+          ${escapeHtml(sub.studentName || 'Student')}${antiAiBadge}
           ${sub.studentEmail ? `<div style="font-size:0.7rem; color:#5f6368; font-weight:400;">${escapeHtml(sub.studentEmail)}</div>` : ''}
         </td>
         <td style="padding:0.55rem 0.65rem;">
@@ -468,7 +471,11 @@ function renderReviewDashboard() {
     dialEl.textContent = computedScore;
   }
   document.getElementById('assignedGradeInput').value = submissionData.assignedScore ?? computedScore;
-  document.getElementById('aiSummaryText').textContent = analysis.summary || 'Session in progress. Click "🔄 Refresh AI Assessment" to evaluate the transcript.';
+  const antiAiTel = submissionData.antiAiTelemetry;
+  const antiAiSummaryPrefix = (submissionData.studentMode === 'anti_ai_shield' || antiAiTel?.regimeActive)
+    ? `[🛡️ Anti-AI Verified Workbench Regime: ${antiAiTel?.deicticStepsCompleted || 0} Deictic Token Step(s), ${antiAiTel?.mutationTwistsVerified || 0} Mid-Problem Mutation Twist(s) Verified, ${antiAiTel?.pasteEventsCount || 0} Paste Event(s)] `
+    : '';
+  document.getElementById('aiSummaryText').textContent = `${antiAiSummaryPrefix}${analysis.summary || 'Session in progress. Click "🔄 Refresh AI Assessment" to evaluate the transcript.'}`;
   document.getElementById('independenceScore').textContent = `${analysis.socraticIndependenceScore ?? computedScore} / 100`;
   document.getElementById('teacherFeedbackInput').value = submissionData.teacherFeedback || analysis.suggestedTeacherFeedback || '';
 

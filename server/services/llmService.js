@@ -320,11 +320,44 @@ export class LLMService {
     // Extract active problem from latest assistant message or systemPrompt
     const quoteMatch = lastAssistantText.match(/^>\s*(.+)$/m);
     const activeProblem = quoteMatch ? quoteMatch[1].trim() : 'the current problem shown in the top banner';
+    const isAntiAiShield = /ANTI-AI VERIFIED WORKBENCH REGIME|anti_ai_shield/i.test(systemPrompt) || /\[Anti-AI Workbench:/i.test(lastUserMessage);
 
     let responseText = "";
     let mastery = 10;
     let milestone = 0;
     let misconception = null;
+
+    if (isAntiAiShield && !hasPhoto) {
+      const wbMatch = lastUserMessage.match(/\[Anti-AI Workbench:\s*Token=([^,\]]+),\s*Rule=([^\]]+)\]/i);
+      const chosenToken = wbMatch ? wbMatch[1].trim() : '🔵 Token A';
+      const chosenRule = wbMatch ? wbMatch[2].trim() : 'your selected Rule Chip';
+      const userTurnCount = userMessages.length;
+
+      if (userTurnCount <= 1) {
+        responseText = `🛡️ **Anti-AI Workbench Step 1 Verified (${chosenToken} • ${chosenRule}):**\n\nGood anchor! Applying **${chosenRule}** to **${chosenToken}** transforms that first block.\n\n🔄 **Mid-Problem Verification Twist (No Static Solver):**\nBefore combining **${chosenToken}** with **🟠 Token B**, a classmate claims we can just directly add or subtract the inner raw numbers without applying the operation law. In 5–12 plain everyday words (no textbook jargon!), why does that shortcut fail, and what combined value do you get when you merge **${chosenToken}** and **🟠 Token B** properly?`;
+        mastery = 55;
+        milestone = 1;
+      } else {
+        responseText = `🛡️ **Anti-AI Deictic & Mutation Check Passed!**\n\nYou explained in your own words why the naive shortcut on **${chosenToken}** and **🟠 Token B** fails, and your transformed intermediate step is consistent with **${chosenRule}** from the Teacher Reference Sheet.\n\nNow type your final simplified step chain and click **✅ Submit Answer**!`;
+        mastery = 90;
+        milestone = 2;
+      }
+
+      return {
+        content: responseText,
+        telemetry: {
+          milestoneProgress: milestone,
+          masteryLevel: mastery,
+          currentStep: milestone >= 2 ? 'anti_ai_verified' : 'anti_ai_mutation_check',
+          detectedMisconception: null,
+          needsHint: false
+        },
+        provider: `${provider} (Anti-AI Shield Engine)`,
+        model,
+        simulated: !config.isAnyLLMConfigured,
+        timestamp: new Date().toISOString()
+      };
+    }
 
     if (hasPhoto) {
       if (/graph|asymptote|curve|sketch|plot/i.test(lastLower)) {
